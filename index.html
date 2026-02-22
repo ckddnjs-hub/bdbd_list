@@ -9,126 +9,121 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         body { background-color: #f8f9fa; font-family: 'Malgun Gothic', sans-serif; }
-        .card { border: none; border-radius: 15px; transition: transform 0.2s; position: relative; overflow: hidden; }
+        .card { border: none; border-radius: 15px; transition: transform 0.2s; position: relative; height: 100%; border: 1px solid #eee; }
         .card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important; }
-        .card-title { font-weight: 800; color: #2c3e50; padding-right: 40px; }
-        .badge-genre { background-color: #6c5ce7; }
+        .card-title { font-weight: 800; color: #2c3e50; padding-right: 40px; word-break: keep-all; }
+        .badge-genre { background-color: #6c5ce7; color: white; }
         .badge-diff { background-color: #fdcb6e; color: #2d3436; }
-        .yt-link { position: absolute; top: 15px; right: 15px; color: #ff0000; font-size: 1.8rem; z-index: 10; }
-        #loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; }
+        .yt-link { position: absolute; top: 20px; right: 20px; color: #ff0000; font-size: 1.8rem; z-index: 10; transition: scale 0.2s; }
+        .yt-link:hover { scale: 1.2; }
+        .game-info { font-size: 0.9rem; margin-bottom: 4px; color: #444; }
+        .game-desc { font-size: 0.85rem; color: #636e72; line-height: 1.5; }
+        #loading { text-align: center; padding: 100px 0; }
     </style>
 </head>
 <body>
 
-<div class="container py-5">
+<div class="container py-4">
     <div class="text-center mb-5">
-        <h1 class="fw-bold">🎲 보동보동 보드게임</h1>
-        <p class="text-muted">실시간 구글 시트 데이터 연동 중</p>
+        <h1 class="fw-bold mb-2">🎲 보동보동 보드게임</h1>
+        <p class="text-muted small">보유 중인 보드게임 리스트입니다.</p>
     </div>
 
     <div id="loading">
         <div class="spinner-border text-primary" role="status"></div>
-        <p class="mt-3 text-muted">데이터를 불러오는 중입니다...<br><small>(처음 로딩 시 2~3초 소요될 수 있습니다)</small></p>
+        <p class="mt-3 text-muted">데이터를 읽어오는 중...</p>
     </div>
 
-    <div id="controls" class="row mb-4" style="display: none;">
-        <div class="col-md-6 mb-3">
-            <input type="text" id="searchInput" class="form-control" placeholder="게임 이름으로 검색..." onkeyup="renderGames()">
-        </div>
-        <div class="col-md-6 text-md-end">
-            <select id="sortSelect" class="form-select w-auto d-inline-block" onchange="renderGames()">
-                <option value="name">가나다순</option>
-                <option value="diff_desc">난이도 높은순</option>
-                <option value="diff_asc">난이도 낮은순</option>
-            </select>
+    <div id="controls" class="row mb-4 justify-content-center" style="display:none;">
+        <div class="col-12 col-md-6">
+            <div class="input-group shadow-sm">
+                <span class="input-group-text bg-white border-end-0"><i class="fas fa-search"></i></span>
+                <input type="text" id="searchInput" class="form-control border-start-0" placeholder="게임 이름 검색..." onkeyup="render()">
+            </div>
         </div>
     </div>
 
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="gameGrid"></div>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="grid"></div>
 </div>
 
 <script>
-    // 1. 구글 시트 CSV 주소 (프록시 서버를 경유하여 CORS 보안 문제 해결)
-    const rawUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSHoZYMqS3T67UY2Tm6BRmlYNeVLVO_ZV2Rz72AY6fbknBn4l29avEykFoiFd3rrfm1BPnWjmj-HFMR/pub?gid=976711259&single=true&output=csv';
-    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(rawUrl);
-
     let games = [];
 
-    async function init() {
+    // 같은 폴더의 data.csv를 읽어오는 함수
+    async function loadCSV() {
         try {
-            // Fetch로 데이터를 가져옵니다.
-            const response = await fetch(proxyUrl);
-            if (!response.ok) throw new Error('데이터 응답 없음');
-            const csvData = await response.text();
+            const response = await fetch('data.csv');
+            if (!response.ok) throw new Error('파일 없음');
+            
+            const arrayBuffer = await response.arrayBuffer();
+            const decoder = new TextDecoder('utf-8'); // 한글 깨짐 방지
+            const csvText = decoder.decode(arrayBuffer);
 
-            // 파싱 시작
-            Papa.parse(csvData, {
-                header: true,
+            Papa.parse(csvText, {
+                header: false,
                 skipEmptyLines: true,
                 complete: function(results) {
-                    // 구글 시트 특성상 필드명 앞뒤 공백 제거
-                    games = results.data.map(item => {
-                        let obj = {};
-                        for (let key in item) {
-                            obj[key.trim()] = item[key] ? item[key].trim() : '';
-                        }
-                        return obj;
-                    }).filter(g => g['게임명']); // 게임명이 있는 데이터만 선택
-
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('controls').style.display = 'flex';
-                    renderGames();
+                    processGameData(results.data);
                 }
             });
         } catch (err) {
-            console.error(err);
-            document.getElementById('loading').innerHTML = `
-                <div class="alert alert-danger">
-                    데이터 로드 실패! <br> 
-                    1. 구글 시트에서 [파일] -> [공유] -> [웹에 게시]를 완료했는지 확인해주세요. <br>
-                    2. Vercel에 배포한 후 확인하시면 정상 작동합니다.
-                </div>`;
+            document.getElementById('loading').innerHTML = 
+                `<div class="alert alert-warning"><b>data.csv</b> 파일을 찾을 수 없습니다. <br> 
+                HTML과 같은 폴더에 CSV 파일을 넣어주세요.</div>`;
         }
     }
 
-    function renderGames() {
+    // 보동보동님의 세로형 CSV 구조를 처리하는 로직
+    function processGameData(rows) {
+        let list = [];
+        let current = null;
+
+        rows.forEach(row => {
+            // row[1]은 항목 이름(게임명 등), row[2]는 실제 값
+            const key = row[1] ? row[1].trim() : "";
+            const value = row[2] ? row[2].trim() : "";
+
+            if (key === "게임명") {
+                if (current) list.push(current);
+                current = { "게임명": value };
+            } else if (current && key) {
+                current[key] = value;
+            }
+        });
+        if (current) list.push(current);
+
+        games = list;
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('controls').style.display = 'flex';
+        render();
+    }
+
+    function render() {
         const query = document.getElementById('searchInput').value.toLowerCase();
-        const sort = document.getElementById('sortSelect').value;
-        const grid = document.getElementById('gameGrid');
+        const grid = document.getElementById('grid');
         
-        let filtered = games.filter(g => g['게임명'].toLowerCase().includes(query));
+        const filtered = games.filter(g => g['게임명'] && g['게임명'].toLowerCase().includes(query));
 
-        // 정렬 로직
-        if (sort === 'name') filtered.sort((a, b) => a['게임명'].localeCompare(b['게임명']));
-        if (sort.includes('diff')) {
-            filtered.sort((a, b) => {
-                const diffA = (a['난이도'] || '').length;
-                const diffB = (b['난이도'] || '').length;
-                return sort === 'diff_asc' ? diffA - diffB : diffB - diffA;
-            });
-        }
-
-        grid.innerHTML = filtered.map(game => `
+        grid.innerHTML = filtered.map(g => `
             <div class="col">
-                <div class="card h-100 shadow-sm p-3">
-                    ${game['게임 규칙'] ? `<a href="${game['게임 규칙']}" target="_blank" class="yt-link"><i class="fab fa-youtube"></i></a>` : ''}
-                    <div class="card-body">
-                        <h4 class="card-title mb-3">${game['게임명']}</h4>
+                <div class="card shadow-sm p-4">
+                    ${g['게임 규칙'] ? `<a href="${g['게임 규칙']}" target="_blank" class="yt-link"><i class="fab fa-youtube"></i></a>` : ''}
+                    <div class="card-body p-0">
+                        <h4 class="card-title mb-3">${g['게임명']}</h4>
                         <div class="mb-3">
-                            <span class="badge badge-genre me-1">${game['장르'] || '보드게임'}</span>
-                            <span class="badge badge-diff">난이도: ${game['난이도'] || '-'}</span>
+                            <span class="badge badge-genre small me-1">${g['장르'] || '보드게임'}</span>
+                            <span class="badge badge-diff small">난이도: ${g['난이도'] || '-'}</span>
                         </div>
-                        <p class="small mb-1"><strong>👤 인원:</strong> ${game['플레이 인원'] || '-'}</p>
-                        <p class="small mb-3"><strong>⏳ 시간:</strong> ${game['플레이 시간'] || '-'}</p>
-                        <hr>
-                        <p class="card-text text-muted small">${game['게임 설명'] || '설명이 없습니다.'}</p>
+                        <div class="game-info"><strong>👥 인원:</strong> ${g['플레이 인원'] || '-'}</div>
+                        <div class="game-info"><strong>⏳ 시간:</strong> ${g['플레이 시간'] || '-'}</div>
+                        <p class="game-desc mt-3 border-top pt-3">${g['게임 설명'] || '상세 설명 준비 중입니다.'}</p>
                     </div>
                 </div>
             </div>
         `).join('');
     }
 
-    init();
+    loadCSV();
 </script>
 </body>
 </html>
