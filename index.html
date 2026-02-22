@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>보동보동 보드게임 리스트</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Malgun Gothic', sans-serif; }
+        .card { border: none; border-radius: 15px; transition: transform 0.2s; position: relative; }
+        /* PC에서만 마우스 호버 애니메이션 작동 */
+        @media (hover: hover) { 
+            .card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important; } 
+        }
+        .card-title { font-weight: 800; color: #2c3e50; margin-right: 35px; word-break: keep-all; }
+        .badge-genre { background-color: #6c5ce7; }
+        .badge-diff { background-color: #fdcb6e; color: #2d3436; }
+        .game-desc { font-size: 0.9rem; color: #636e72; min-height: 50px; }
+        
+        /* 유튜브 아이콘 스타일 */
+        .yt-icon-link {
+            position: absolute; top: 15px; right: 15px; color: #ff0000; font-size: 1.6rem;
+            text-decoration: none; transition: color 0.2s; background: #fff; border-radius: 50%;
+            width: 35px; height: 35px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .yt-icon-link:hover { color: #cc0000; }
+        
+        /* 모바일 최적화 */
+        .w-md-auto { width: 100%; }
+        @media (min-width: 768px) { .w-md-auto { width: auto !important; } }
+    </style>
+</head>
+<body>
+
+<div class="container py-4 py-md-5">
+    <div class="text-center mb-4">
+        <h1 class="fw-bold mb-3 fs-2 fs-md-1">🎲 보동보동 보드게임</h1>
+        <p class="text-muted small">구글 시트와 실시간 연동된 최신 목록입니다.</p>
+    </div>
+
+    <div id="loading" class="text-center my-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">게임 목록을 불러오는 중입니다...</p>
+    </div>
+
+    <div id="controlsContainer" class="row mb-4" style="display: none;">
+        <div class="col-12 col-md-5 mb-2 mb-md-0">
+            <div class="input-group shadow-sm">
+                <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="게임명 검색..." onkeyup="sortAndDisplayGames()">
+            </div>
+        </div>
+        <div class="col-12 col-md-7 d-flex justify-content-md-end">
+            <select class="form-select w-md-auto shadow-sm" id="sortSelect" onchange="sortAndDisplayGames()">
+                <option value="name">🔠 가나다순</option>
+                <option value="diff_asc">🟢 난이도 쉬운순</option>
+                <option value="diff_desc">🔴 난이도 어려운순</option>
+                <option value="time_asc">⏳ 시간 짧은순</option>
+                <option value="time_desc">⌛ 시간 긴순</option>
+                <option value="player_asc">👤 인원 적은순</option>
+                <option value="player_desc">👥 인원 많은순</option>
+                <option value="pop_desc">⭐ 인기순</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="noResult" class="text-center text-muted my-5" style="display: none;">
+        <p>검색 결과가 없습니다. 😢</p>
+    </div>
+
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="gameGrid"></div>
+</div>
+
+<script>
+    // 사용자님이 발급받은 구글 스프레드시트 웹 게시 URL
+    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSHoZYMqS3T67UY2Tm6BRmlYNeVLVO_ZV2Rz72AY6fbknBn4l29avEykFoiFd3rrfm1BPnWjmj-HFMR/pub?gid=976711259&single=true&output=csv';
+    
+    let globalGames = [];
+
+    // 페이지 접속 시 자동으로 구글 시트 데이터를 가져옴
+    window.onload = function() {
+        Papa.parse(sheetUrl, {
+            download: true,
+            header: true,
+            complete: function(results) {
+                // 게임명이 비어있는 잘못된 줄 제거
+                globalGames = results.data.filter(game => game['게임명'] && game['게임명'].trim() !== '');
+                
+                // 로딩 숨기고 컨트롤 및 카드 표시
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('controlsContainer').style.display = 'flex';
+                sortAndDisplayGames();
+            },
+            error: function(err) {
+                document.getElementById('loading').innerHTML = '<p class="text-danger">데이터를 불러오는데 실패했습니다. 구글 시트 링크를 확인해주세요.</p>';
+            }
+        });
+    };
+
+    function calculateDifficulty(starString) {
+        if (!starString) return 0;
+        let score = 0;
+        for (let char of starString) {
+            if (char === '★') score += 1;
+            else if (char === '☆') score += 0.5;
+        }
+        return score;
+    }
+
+    function calculateTime(timeString) {
+        if (!timeString) return 0;
+        const numbers = timeString.match(/\d+/g);
+        if (!numbers) return 0;
+        let sum = 0;
+        for (let num of numbers) sum += parseInt(num, 10);
+        return sum / numbers.length; 
+    }
+
+    function calculatePlayers(playerString, isMax) {
+        if (!playerString) return 0;
+        const numbers = playerString.match(/\d+/g);
+        if (!numbers || numbers.length === 0) return 0;
+        if (isMax) return numbers.length > 1 ? parseInt(numbers[1], 10) : parseInt(numbers[0], 10);
+        else return parseInt(numbers[0], 10);
+    }
+
+    function sortAndDisplayGames() {
+        const sortOption = document.getElementById('sortSelect').value;
+        const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+        
+        const grid = document.getElementById('gameGrid');
+        const noResult = document.getElementById('noResult');
+        grid.innerHTML = ''; 
+
+        // 1. 검색어 필터링
+        let filteredGames = globalGames.filter(game => {
+            const gameName = (game['게임명'] || '').toLowerCase();
+            return gameName.includes(searchQuery);
+        });
+
+        // 2. 정렬
+        filteredGames.sort((a, b) => {
+            const nameA = a['게임명'] || ''; const nameB = b['게임명'] || '';
+
+            if (sortOption === 'name') return nameA.localeCompare(nameB);
+            else if (sortOption === 'diff_asc') {
+                const valA = calculateDifficulty(a['난이도']); const valB = calculateDifficulty(b['난이도']);
+                return valA === valB ? nameA.localeCompare(nameB) : valA - valB;
+            } 
+            else if (sortOption === 'diff_desc') {
+                const valA = calculateDifficulty(a['난이도']); const valB = calculateDifficulty(b['난이도']);
+                return valA === valB ? nameA.localeCompare(nameB) : valB - valA;
+            }
+            else if (sortOption === 'time_asc') {
+                const valA = calculateTime(a['플레이 시간']); const valB = calculateTime(b['플레이 시간']);
+                return valA === valB ? nameA.localeCompare(nameB) : valA - valB;
+            }
+            else if (sortOption === 'time_desc') {
+                const valA = calculateTime(a['플레이 시간']); const valB = calculateTime(b['플레이 시간']);
+                return valA === valB ? nameA.localeCompare(nameB) : valB - valA;
+            }
+            else if (sortOption === 'player_asc') {
+                const valA = calculatePlayers(a['플레이 인원'], false); const valB = calculatePlayers(b['플레이 인원'], false);
+                return valA === valB ? nameA.localeCompare(nameB) : valA - valB;
+            }
+            else if (sortOption === 'player_desc') {
+                const valA = calculatePlayers(a['플레이 인원'], true); const valB = calculatePlayers(b['플레이 인원'], true);
+                return valA === valB ? nameA.localeCompare(nameB) : valB - valA;
+            }
+            else if (sortOption === 'pop_desc') {
+                const valA = parseFloat(a['인기도'] || a['평점'] || 0); const valB = parseFloat(b['인기도'] || b['평점'] || 0);
+                return valA === valB ? nameA.localeCompare(nameB) : valB - valA;
+            }
+        });
+
+        // 3. 렌더링
+        if (filteredGames.length === 0 && globalGames.length > 0) {
+            noResult.style.display = 'block';
+        } else {
+            noResult.style.display = 'none';
+            filteredGames.forEach(game => {
+                const youtubeLinkIcon = game['게임 규칙'] && game['게임 규칙'].includes('http') 
+                    ? `<a href="${game['게임 규칙']}" target="_blank" class="yt-icon-link" title="유튜브 규칙 영상 보기"><i class="fab fa-youtube"></i></a>` 
+                    : '';
+
+                const cardHTML = `
+                    <div class="col">
+                        <div class="card h-100 shadow-sm p-3">
+                            ${youtubeLinkIcon}
+                            <div class="card-body p-0">
+                                <h4 class="card-title mb-3">${game['게임명'] || '이름 없음'}</h4>
+                                <div class="mb-3">
+                                    <span class="badge badge-genre me-1">${game['장르'] || '장르 미상'}</span>
+                                    <span class="badge badge-diff">난이도: ${game['난이도'] || '-'}</span>
+                                </div>
+                                <ul class="list-unstyled mb-3">
+                                    <li><strong>👥 인원:</strong> ${game['플레이 인원'] || '-'}</li>
+                                    <li><strong>⏳ 시간:</strong> ${game['플레이 시간'] || '-'}</li>
+                                </ul>
+                                <p class="card-text game-desc border-top pt-3">${game['게임 설명'] || ''}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.innerHTML += cardHTML;
+            });
+        }
+    }
+</script>
+
+</body>
+</html>
