@@ -3,107 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>공무원 발탁력 테스트</title>
+    <title>초고속 승진! 발탁력 테스트</title>
     <style>
-        body { font-family: 'Pretendard', sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        #test-container { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 500px; text-align: center; }
-        h1 { color: #2c3e50; font-size: 24px; margin-bottom: 10px; }
-        .progress { font-size: 14px; color: #7f8c8d; margin-bottom: 20px; }
-        .question-box { min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .question-text { font-size: 18px; font-weight: bold; color: #34495e; line-height: 1.5; margin-bottom: 20px; }
-        .image-placeholder { width: 100%; height: 150px; background-color: #e0e0e0; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; font-size: 40px; }
-        .btn-container { display: flex; gap: 10px; justify-content: center; }
-        button { padding: 15px 40px; font-size: 20px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; transition: 0.2s; }
-        .btn-o { background-color: #27ae60; color: white; }
-        .btn-x { background-color: #e74c3c; color: white; }
-        button:hover { opacity: 0.8; transform: scale(1.05); }
-        #result-area { display: none; }
-        .result-score { font-size: 48px; font-weight: bold; color: #2980b9; margin: 20px 0; }
-        .result-comment { font-size: 18px; color: #2c3e50; line-height: 1.6; white-space: pre-line; }
-        .retry-btn { margin-top: 20px; background: #34495e; color: white; padding: 10px 20px; font-size: 16px; }
+        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --dark: #333; }
+        body { font-family: 'Pretendard', sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        #app { background: white; width: 100%; max-width: 500px; padding: 30px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.15); text-align: center; overflow-y: auto; max-height: 90vh; }
+        
+        /* 퀴즈 스타일 */
+        .q-num { color: var(--primary); font-weight: bold; font-size: 1.2rem; }
+        .img-box { font-size: 70px; margin: 20px 0; background: #f8f9fa; border-radius: 20px; padding: 20px; }
+        .q-text { font-size: 1.25rem; font-weight: 800; color: var(--dark); line-height: 1.5; min-height: 90px; word-break: keep-all; }
+        .btn-group { display: flex; gap: 15px; margin-top: 25px; }
+        .btn { flex: 1; border: none; padding: 20px; border-radius: 15px; font-size: 1.8rem; font-weight: bold; cursor: pointer; color: white; transition: 0.1s; }
+        .btn-o { background: var(--success); box-shadow: 0 6px 0 #1e7e34; }
+        .btn-x { background: var(--danger); box-shadow: 0 6px 0 #bd2130; }
+        .btn:active { transform: translateY(3px); box-shadow: none; }
+
+        /* 결과 스타일 */
+        #result { display: none; text-align: left; }
+        .score-val { font-size: 3.5rem; font-weight: 900; color: var(--primary); text-align: center; margin: 10px 0; }
+        .rank-title { font-size: 1.6rem; font-weight: bold; color: var(--dark); text-align: center; margin-bottom: 20px; }
+        .comment-box { background: #eef2f7; padding: 20px; border-radius: 15px; font-size: 1rem; color: #444; line-height: 1.6; margin-bottom: 30px; text-align: center; }
+        
+        /* 해설 스타일 */
+        .review-section { border-top: 2px dashed #ccc; padding-top: 20px; }
+        .review-title { font-weight: bold; font-size: 1.2rem; margin-bottom: 15px; color: var(--dark); display: flex; align-items: center; gap: 8px; }
+        .review-item { margin-bottom: 20px; padding: 15px; border-radius: 12px; background: #fff; border: 1px solid #eee; }
+        .review-q { font-weight: bold; font-size: 0.95rem; margin-bottom: 8px; color: #333; }
+        .review-ans { font-size: 0.85rem; color: #666; }
+        .correct-tag { color: var(--success); font-weight: bold; }
+        .wrong-tag { color: var(--danger); font-weight: bold; }
+        .explanation { font-size: 0.85rem; color: #0056b3; margin-top: 5px; font-style: italic; }
+
+        .restart-btn { width: 100%; background: var(--dark); color: white; border: none; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 20px; }
     </style>
 </head>
 <body>
 
-<div id="test-container">
-    <div id="quiz-area">
-        <h1>🚀 초고속 발탁 승진 가능성 테스트</h1>
-        <div class="progress" id="progress">1 / 10</div>
-        <div class="question-box">
-            <div class="image-placeholder" id="emoji">🏢</div>
-            <div class="question-text" id="question">문제가 여기에 표시됩니다.</div>
-        </div>
-        <div class="btn-container">
-            <button class="btn-o" onclick="nextQuestion(true)">O</button>
-            <button class="btn-x" onclick="nextQuestion(false)">X</button>
+<div id="app">
+    <div id="quiz">
+        <div class="q-num" id="q-num">Q1 / 10</div>
+        <div class="img-box" id="q-img">📄</div>
+        <div class="q-text" id="q-text">주무과장님께 별 볼 일 없는 서류라도 눈도장을 위해 직접 들고 갈 수 있다.</div>
+        <div class="btn-group">
+            <button class="btn btn-o" onclick="handleAnswer(true)">O</button>
+            <button class="btn btn-x" onclick="handleAnswer(false)">X</button>
         </div>
     </div>
 
-    <div id="result-area">
-        <h1>🎊 테스트 결과 🎊</h1>
-        <div class="result-score" id="score">0점</div>
-        <div class="result-comment" id="comment">결과 멘트가 표시됩니다.</div>
-        <button class="retry-btn" onclick="location.reload()">다시 하기</button>
+    <div id="result">
+        <h2 style="text-align:center; margin-top:0;">📊 발탁력 검진 결과</h2>
+        <div class="score-val" id="score-val">0점</div>
+        <div class="rank-title" id="rank-title"></div>
+        <div class="comment-box" id="rank-comment"></div>
+
+        <div class="review-section" id="review-section">
+            <div class="review-title">🧐 오답 및 해설 노하우</div>
+            </div>
+
+        <button class="restart-btn" onclick="location.reload()">처음부터 다시 도전</button>
     </div>
 </div>
 
 <script>
-    const questions = [
-        { q: "주무과장님 결재 도장보다, 과장님 동공에 내 얼굴을 박아넣는 '눈도장' 서명이 더 중요하다.", a: true, e: "👁️" },
-        { q: "과장님의 점심 컨디션을 위해 새벽 6시에 주차장 명당 확보는 기본 중의 기본이다.", a: true, e: "🚗" },
-        { q: "청사 패션 피플이 되기 위해 트위드 자켓과 자물쇠 목걸이 착용은 '공무원 품위 유지'에 해당한다.", a: true, e: "⛓️" },
-        { q: "치킨 50마리(푸다닭) 참아서 명품 넥타이 하나 장만하는 게 승진에 더 유리하다.", a: true, e: "👔" },
-        { q: "회식 후 노래방 예약은 1분 컷이며, 이미 국장님 애창곡 1~10번이 예약되어 있다.", a: true, e: "🎤" },
-        { q: "한 해 국회 요구자료 743건 정도는 '성장 동력'이라 생각하며 웃으며 쳐낼 수 있다.", a: true, e: "📂" },
-        { q: "고위직의 무리한 요구에 속으로 화가 난다면, 당신은 아직 발탁될 자격이 부족하다. (속으로도 감사해야 함)", a: false, e: "😇" },
-        { q: "나는 6급 승진만 보장된다면 한 달 초과근무 100시간을 '워라밸'이라 부를 수 있다.", a: true, e: "⏰" },
-        { q: "기관 내 인지도 상승을 위해 SNS에 '두쫀립(두툼하고 쫀쫀한 입술)' 셀카 업로드는 필수다.", a: true, e: "👄" },
-        { q: "내가 발탁 안 되고 딴 놈이 되면, 그날로 그놈 책상에 '사표' 대신 '질투'를 던질 것이다.", a: true, e: "🔥" }
+    const quizData = [
+        { q: "주무과장님께 별 볼 일 없는 서류라도 눈도장을 위해 직접 들고 서명 받으러 갈 수 있다.", a: true, i: "📄", desc: "결재는 서류를 내는 게 아니라 얼굴을 비추는 예술입니다." },
+        { q: "과장님의 쾌적한 출근을 위해 새벽 6시에 지하 1층 주차 자리를 맡아둘 수 있다.", a: true, i: "🚗", desc: "주차 자리가 곧 충성심의 깊이입니다." },
+        { q: "청사 내 인지도 상승을 위해 트위드 자켓에 자물쇠 목걸이 정도는 착용 가능하다.", a: true, i: "⛓️", desc: "패션은 전략입니다. 국장님 눈에 띄는 것이 최우선!" },
+        { q: "프라다 넥타이 하나 사는 게, 푸다닭 50번 시켜 먹는 것보다 발탁에 유리하다.", a: true, i: "👔", desc: "기품 있는 넥타이는 당신의 신분을 결정짓습니다." },
+        { q: "회식 후 노래방에서 과장님 애창곡 번호를 1초 만에 입력할 수 있다.", a: true, i: "🎤", desc: "애창곡 번호는 인사기록카드보다 중요할 때가 있습니다." },
+        { q: "한 해 국회 요구자료 743건 정도는 '조직을 위한 헌신'이라며 웃으며 해결한다.", a: true, i: "📂", desc: "743건은 고통이 아니라 발탁을 위한 마일리지입니다." },
+        { q: "고위직의 무리한 업무 요구에 속으로 '화가 나지만' 겉으로는 웃는다.", a: false, i: "😇", desc: "틀렸습니다! 진정한 발탁러는 '속으로도' 감사해야 합니다." },
+        { q: "나는 6급 승진을 위해서라면 월 초과근무 100시간을 기꺼이 감수한다.", a: true, i: "⏰", desc: "초과근무는 야근이 아니라 '성공을 위한 적금'입니다." },
+        { q: "인지도를 올리기 위해 SNS에 치명적인 '두쫀립' 사진을 올릴 용기가 있다.", a: true, i: "👄", desc: "관심이 곧 권력입니다. 두툼하고 쫀쫀하게!" },
+        { q: "동료가 먼저 발탁된다면, 그날로 화가 나서 밤잠을 설칠 정도로 열정이 있다.", a: true, i: "🔥", desc: "질투는 성장의 원동력입니다. 분노해야 승부욕이 생깁니다." }
     ];
 
     let currentIdx = 0;
     let score = 0;
+    let userAnswers = [];
 
-    function nextQuestion(userAnswer) {
-        if (userAnswer === questions[currentIdx].a) {
+    function handleAnswer(userSelect) {
+        userAnswers.push(userSelect);
+        if (userSelect === quizData[currentIdx].a) {
             score += 10;
         }
-
+        
         currentIdx++;
-
-        if (currentIdx < questions.length) {
-            updateQuestion();
+        if (currentIdx < quizData.length) {
+            updateQuiz();
         } else {
             showResult();
         }
     }
 
-    function updateQuestion() {
-        document.getElementById('progress').innerText = `${currentIdx + 1} / 10`;
-        document.getElementById('question').innerText = questions[currentIdx].q;
-        document.getElementById('emoji').innerText = questions[currentIdx].e;
+    function updateQuiz() {
+        document.getElementById('q-num').innerText = `Q${currentIdx + 1} / 10`;
+        document.getElementById('q-img').innerText = quizData[currentIdx].i;
+        document.getElementById('q-text').innerText = quizData[currentIdx].q;
     }
 
     function showResult() {
-        document.getElementById('quiz-area').style.display = 'none';
-        document.getElementById('result-area').style.display = 'block';
-        document.getElementById('score').innerText = score + "점";
-
+        document.getElementById('quiz').style.display = 'none';
+        document.getElementById('result').style.display = 'block';
+        document.getElementById('score-val').innerText = score + "점";
+        
+        let title = "";
         let comment = "";
-        if (score >= 90) {
-            comment = "【 발탁의 신(神) 】\n당신은 이미 마음만큼은 3급 부이사관입니다.\n프라다 넥타이가 피부처럼 잘 어울리시네요.\n곧 인사과에서 연락 갈 테니 짐 싸두세요.";
-        } else if (score >= 70) {
-            comment = "【 승진 궤도 진입 】\n상당히 훌륭한 '발탁력'을 가졌군요.\n초과근무 100시간도 견디는 강철 멘탈!\n조금만 더 눈도장을 찍으면 '발탁'은 당신의 것!";
-        } else if (score >= 40) {
-            comment = "【 평범한 성실파 】\n일은 잘하지만 '야망'이 한 스푼 부족합니다.\n지금 바로 두쫀립 사진을 찍어 SNS에 올리세요.\n자물쇠 목걸이 구매도 고려해보시길.";
-        } else {
-            comment = "【 자유로운 영혼 】\n승진보다는 저녁이 있는 삶을 사랑하시군요.\n주무과장님 차 대기시킬 시간에\n본인 맛집 리스트나 더 업데이트하세요!";
-        }
-        document.getElementById('comment').innerText = comment;
-    }
 
-    // 초기 질문 세팅
-    updateQuestion();
+        if (score >= 90) { title = "🏆 발탁의 화신"; comment = "당신은 이미 인사카드가 황금빛으로 빛나고 있습니다. 지금 당장 프라다 넥타이를 매세요!"; }
+        else if (score >= 70) { title = "🥈 발탁 꿈나무"; comment = "훌륭합니다. 다만 가끔씩 튀어나오는 '인성'을 조금만 더 숨기면 완벽해집니다."; }
+        else if (score >= 40) { title = "🥉 평범한 공노비"; comment = "아직은 워라밸을 꿈꾸시는군요. 발탁보다는 건강을 챙기시는 게 빠를지도?"; }
+        else { title = "🌵 야생의 자유인"; comment = "승진이 다 뭡니까? 내가 행복하면 그만이죠! 과장님 차 대신 본인 퇴근길이나 챙깁시다."; }
+
+        document.getElementById('rank-title').innerText = title;
+        document.getElementById('rank-comment').innerText = comment;
+
+        // 해설 생성
+        const reviewSection = document.getElementById('review-section');
+        quizData.forEach((data, index) => {
+            const isCorrect = userAnswers[index] === data.a;
+            const item = document.createElement('div');
+            item.className = 'review-item';
+            item.innerHTML = `
+                <div class="review-q">Q${index+1}. ${data.q}</div>
+                <div class="review-ans">
+                    내 선택: <span class="${isCorrect ? 'correct-tag' : 'wrong-tag'}">${userAnswers[index] ? 'O' : 'X'}</span> | 
+                    정답: <b>${data.a ? 'O' : 'X'}</b>
+                </div>
+                <div class="explanation">💡 해설: ${data.desc}</div>
+            `;
+            reviewSection.appendChild(item);
+        });
+    }
 </script>
 
 </body>
