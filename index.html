@@ -1,146 +1,109 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<title>발탁력 테스트</title>
-<style>
-body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; }
-.question { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
-.result { margin-top: 30px; padding: 20px; border: 2px solid #333; border-radius: 10px; }
-button { padding: 8px 15px; margin-top: 10px; }
-.explanation { font-size: 0.9em; color: #555; margin-top: 5px; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>공무원 발탁력 테스트</title>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        #test-container { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 500px; text-align: center; }
+        h1 { color: #2c3e50; font-size: 24px; margin-bottom: 10px; }
+        .progress { font-size: 14px; color: #7f8c8d; margin-bottom: 20px; }
+        .question-box { min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .question-text { font-size: 18px; font-weight: bold; color: #34495e; line-height: 1.5; margin-bottom: 20px; }
+        .image-placeholder { width: 100%; height: 150px; background-color: #e0e0e0; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; font-size: 40px; }
+        .btn-container { display: flex; gap: 10px; justify-content: center; }
+        button { padding: 15px 40px; font-size: 20px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; transition: 0.2s; }
+        .btn-o { background-color: #27ae60; color: white; }
+        .btn-x { background-color: #e74c3c; color: white; }
+        button:hover { opacity: 0.8; transform: scale(1.05); }
+        #result-area { display: none; }
+        .result-score { font-size: 48px; font-weight: bold; color: #2980b9; margin: 20px 0; }
+        .result-comment { font-size: 18px; color: #2c3e50; line-height: 1.6; white-space: pre-line; }
+        .retry-btn { margin-top: 20px; background: #34495e; color: white; padding: 10px 20px; font-size: 16px; }
+    </style>
 </head>
 <body>
 
-<h1>🔥 발탁력 테스트</h1>
-<p>공무원 내부조직 생존 OX 테스트 (재미용)</p>
+<div id="test-container">
+    <div id="quiz-area">
+        <h1>🚀 초고속 발탁 승진 가능성 테스트</h1>
+        <div class="progress" id="progress">1 / 10</div>
+        <div class="question-box">
+            <div class="image-placeholder" id="emoji">🏢</div>
+            <div class="question-text" id="question">문제가 여기에 표시됩니다.</div>
+        </div>
+        <div class="btn-container">
+            <button class="btn-o" onclick="nextQuestion(true)">O</button>
+            <button class="btn-x" onclick="nextQuestion(false)">X</button>
+        </div>
+    </div>
 
-<form id="quizForm">
-
-<div class="question">
-1. 상급자의 의중을 미리 파악해 보고 방향을 선제적으로 맞춘다.<br>
-<input type="radio" name="q1" value="O"> O
-<input type="radio" name="q1" value="X"> X
-<div class="explanation" id="e1"></div>
+    <div id="result-area">
+        <h1>🎊 테스트 결과 🎊</h1>
+        <div class="result-score" id="score">0점</div>
+        <div class="result-comment" id="comment">결과 멘트가 표시됩니다.</div>
+        <button class="retry-btn" onclick="location.reload()">다시 하기</button>
+    </div>
 </div>
-
-<div class="question">
-2. 내 소신이 다르면 공개회의에서 즉시 정면 반박한다.<br>
-<input type="radio" name="q2" value="O"> O
-<input type="radio" name="q2" value="X"> X
-<div class="explanation" id="e2"></div>
-</div>
-
-<div class="question">
-3. 성과를 낼 때는 반드시 상급자 공으로 일부를 돌린다.<br>
-<input type="radio" name="q3" value="O"> O
-<input type="radio" name="q3" value="X"> X
-<div class="explanation" id="e3"></div>
-</div>
-
-<div class="question">
-4. 발탁은 오직 실력만으로 결정된다.<br>
-<input type="radio" name="q4" value="O"> O
-<input type="radio" name="q4" value="X"> X
-<div class="explanation" id="e4"></div>
-</div>
-
-<div class="question">
-5. 조직 내 ‘라인’이나 흐름을 파악하는 것도 중요한 역량이다.<br>
-<input type="radio" name="q5" value="O"> O
-<input type="radio" name="q5" value="X"> X
-<div class="explanation" id="e5"></div>
-</div>
-
-<div class="question">
-6. 상급자의 말이 바뀌면 “일관성이 없다”고 지적한다.<br>
-<input type="radio" name="q6" value="O"> O
-<input type="radio" name="q6" value="X"> X
-<div class="explanation" id="e6"></div>
-</div>
-
-<div class="question">
-7. 눈에 띄되, 책임질 일은 최소화하는 균형감각이 필요하다.<br>
-<input type="radio" name="q7" value="O"> O
-<input type="radio" name="q7" value="X"> X
-<div class="explanation" id="e7"></div>
-</div>
-
-<div class="question">
-8. 상급자의 스타일(보고 방식, 말투, 관심사)을 연구하는 것은 전략이다.<br>
-<input type="radio" name="q8" value="O"> O
-<input type="radio" name="q8" value="X"> X
-<div class="explanation" id="e8"></div>
-</div>
-
-<div class="question">
-9. 내가 옳다고 생각하면 인사권자와 각을 세워도 상관없다.<br>
-<input type="radio" name="q9" value="O"> O
-<input type="radio" name="q9" value="X"> X
-<div class="explanation" id="e9"></div>
-</div>
-
-<div class="question">
-10. 발탁은 타이밍과 조직 적합도가 성과만큼 중요하다.<br>
-<input type="radio" name="q10" value="O"> O
-<input type="radio" name="q10" value="X"> X
-<div class="explanation" id="e10"></div>
-</div>
-
-<button type="button" onclick="checkAnswers()">결과 보기</button>
-
-</form>
-
-<div id="result" class="result"></div>
 
 <script>
-const answers = {
-q1: "O", q2: "X", q3: "O", q4: "X", q5: "O",
-q6: "X", q7: "O", q8: "O", q9: "X", q10: "O"
-};
+    const questions = [
+        { q: "주무과장님 결재 도장보다, 과장님 동공에 내 얼굴을 박아넣는 '눈도장' 서명이 더 중요하다.", a: true, e: "👁️" },
+        { q: "과장님의 점심 컨디션을 위해 새벽 6시에 주차장 명당 확보는 기본 중의 기본이다.", a: true, e: "🚗" },
+        { q: "청사 패션 피플이 되기 위해 트위드 자켓과 자물쇠 목걸이 착용은 '공무원 품위 유지'에 해당한다.", a: true, e: "⛓️" },
+        { q: "치킨 50마리(푸다닭) 참아서 명품 넥타이 하나 장만하는 게 승진에 더 유리하다.", a: true, e: "👔" },
+        { q: "회식 후 노래방 예약은 1분 컷이며, 이미 국장님 애창곡 1~10번이 예약되어 있다.", a: true, e: "🎤" },
+        { q: "한 해 국회 요구자료 743건 정도는 '성장 동력'이라 생각하며 웃으며 쳐낼 수 있다.", a: true, e: "📂" },
+        { q: "고위직의 무리한 요구에 속으로 화가 난다면, 당신은 아직 발탁될 자격이 부족하다. (속으로도 감사해야 함)", a: false, e: "😇" },
+        { q: "나는 6급 승진만 보장된다면 한 달 초과근무 100시간을 '워라밸'이라 부를 수 있다.", a: true, e: "⏰" },
+        { q: "기관 내 인지도 상승을 위해 SNS에 '두쫀립(두툼하고 쫀쫀한 입술)' 셀카 업로드는 필수다.", a: true, e: "👄" },
+        { q: "내가 발탁 안 되고 딴 놈이 되면, 그날로 그놈 책상에 '사표' 대신 '질투'를 던질 것이다.", a: true, e: "🔥" }
+    ];
 
-const explanations = {
-q1: "정답 O → 발탁은 예측력 게임. 지시 전에 움직이면 '센스 있다'는 평가를 받는다.",
-q2: "정답 X → 공개 반박은 정의롭지만, 인사카드엔 메모가 남는다.",
-q3: "정답 O → 성과는 나눌수록 안전하다. 특히 위로.",
-q4: "정답 X → 실력은 기본값. 발탁은 종합예술이다.",
-q5: "정답 O → 조직은 생태계. 흐름을 읽는 사람이 오래간다.",
-q6: "정답 X → 일관성보다 중요한 건 분위기 유지다.",
-q7: "정답 O → 존재감은 높이고 리스크는 낮춰라. 이것이 과속의 기술.",
-q8: "정답 O → 보고는 내용보다 전달방식이 평가를 좌우한다.",
-q9: "정답 X → 정의감과 승진은 다른 트랙일 수 있다.",
-q10: "정답 O → 발탁은 실력 + 타이밍 + 적합도 삼위일체."
-};
+    let currentIdx = 0;
+    let score = 0;
 
-function checkAnswers() {
-let score = 0;
+    function nextQuestion(userAnswer) {
+        if (userAnswer === questions[currentIdx].a) {
+            score += 10;
+        }
 
-for (let i = 1; i <= 10; i++) {
-let selected = document.querySelector(`input[name="q${i}"]:checked`);
-if (!selected) continue;
+        currentIdx++;
 
-if (selected.value === answers[`q${i}`]) {
-score++;
-}
+        if (currentIdx < questions.length) {
+            updateQuestion();
+        } else {
+            showResult();
+        }
+    }
 
-document.getElementById(`e${i}`).innerText = explanations[`q${i}`];
-}
+    function updateQuestion() {
+        document.getElementById('progress').innerText = `${currentIdx + 1} / 10`;
+        document.getElementById('question').innerText = questions[currentIdx].q;
+        document.getElementById('emoji').innerText = questions[currentIdx].e;
+    }
 
-let resultText = "";
-if (score >= 8) {
-resultText = "🔥 과속 발탁형\n\n당신은 조직 공기 흐름을 읽는 고수.\n발탁 적합도 매우 높음.\n두쫀립 + 전략 + 타이밍 완비.";
-} else if (score >= 5) {
-resultText = "🙂 전략 생존형\n\n발탁 가능성 충분.\n조직 적응력은 있으나 가끔 정의감이 튀어나올 위험 있음.";
-} else if (score >= 3) {
-resultText = "🤔 이상주의형\n\n실력은 있으나 조직정치 내공 부족.\n라인보다 논리를 믿는 타입.";
-} else {
-resultText = "🧘 청정 공직자형\n\n발탁과는 거리두기 중.\n소신과 양심은 만렙.";
-}
+    function showResult() {
+        document.getElementById('quiz-area').style.display = 'none';
+        document.getElementById('result-area').style.display = 'block';
+        document.getElementById('score').innerText = score + "점";
 
-document.getElementById("result").innerText =
-"총 점수: " + score + " / 10\n\n" + resultText;
-}
+        let comment = "";
+        if (score >= 90) {
+            comment = "【 발탁의 신(神) 】\n당신은 이미 마음만큼은 3급 부이사관입니다.\n프라다 넥타이가 피부처럼 잘 어울리시네요.\n곧 인사과에서 연락 갈 테니 짐 싸두세요.";
+        } else if (score >= 70) {
+            comment = "【 승진 궤도 진입 】\n상당히 훌륭한 '발탁력'을 가졌군요.\n초과근무 100시간도 견디는 강철 멘탈!\n조금만 더 눈도장을 찍으면 '발탁'은 당신의 것!";
+        } else if (score >= 40) {
+            comment = "【 평범한 성실파 】\n일은 잘하지만 '야망'이 한 스푼 부족합니다.\n지금 바로 두쫀립 사진을 찍어 SNS에 올리세요.\n자물쇠 목걸이 구매도 고려해보시길.";
+        } else {
+            comment = "【 자유로운 영혼 】\n승진보다는 저녁이 있는 삶을 사랑하시군요.\n주무과장님 차 대기시킬 시간에\n본인 맛집 리스트나 더 업데이트하세요!";
+        }
+        document.getElementById('comment').innerText = comment;
+    }
+
+    // 초기 질문 세팅
+    updateQuestion();
 </script>
 
 </body>
