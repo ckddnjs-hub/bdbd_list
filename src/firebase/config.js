@@ -17,15 +17,10 @@ import {
 } from 'firebase/database';
 
 // 🔧 여기를 본인 Firebase 프로젝트 설정으로 교체하세요
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-
 const firebaseConfig = {
   apiKey: "AIzaSyBlRRhM9VYlLlQyrLXXuJ4uzB6Zvt5tPnY",
   authDomain: "scout-84ff1.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  databaseURL: "https://scout-84ff1-default-rtdb.firebaseio.com",
   projectId: "scout-84ff1",
   storageBucket: "scout-84ff1.firebasestorage.app",
   messagingSenderId: "431988627614",
@@ -34,6 +29,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
+
+
+
+
+
+
+
 
 // ==========================================
 // 방 관리
