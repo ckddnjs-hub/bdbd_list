@@ -1,0 +1,965 @@
+/* ==========================================
+   SCOUT! 게임 글로벌 스타일
+   ========================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Black+Han+Sans&display=swap');
+
+:root {
+  --primary: #E74C3C;
+  --primary-dark: #C0392B;
+  --secondary: #3498DB;
+  --accent: #F39C12;
+  --bg: #1a1a2e;
+  --bg-card: #16213e;
+  --bg-surface: #0f3460;
+  --text: #eee;
+  --text-muted: #aaa;
+  --green: #2ecc71;
+  --border: rgba(255,255,255,0.1);
+  --shadow: 0 4px 20px rgba(0,0,0,0.5);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ==========================================
+   LOBBY
+   ========================================== */
+
+.lobby {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 32px 16px;
+  min-height: 100vh;
+}
+
+.lobby-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.logo {
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: 64px;
+  line-height: 1;
+}
+
+.logo-s { color: var(--primary); }
+.logo-cout { color: var(--text); }
+.logo-bang { color: var(--accent); }
+
+.tagline {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.lobby-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 24px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  margin-bottom: 24px;
+}
+
+.name-input-section {
+  margin-bottom: 20px;
+}
+
+.name-input-section label,
+.tab-content label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.input {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'Nunito', sans-serif;
+  font-size: 16px;
+  padding: 12px 16px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input:focus {
+  border-color: var(--primary);
+}
+
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  margin-bottom: 16px;
+}
+
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  background: var(--primary);
+  color: white;
+}
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ==========================================
+   BUTTONS
+   ========================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'Nunito', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.btn:hover { filter: brightness(1.2); }
+.btn:active { transform: scale(0.98); }
+
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary-dark);
+  color: white;
+}
+
+.btn-secondary {
+  background: var(--secondary);
+  border-color: #2980B9;
+  color: white;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+}
+
+.btn-sm { font-size: 12px; padding: 6px 12px; }
+.btn-lg { font-size: 16px; padding: 14px 24px; width: 100%; }
+.btn-disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-disabled:hover, .btn:disabled:hover { filter: none; }
+
+.btn-back {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: 'Nunito', sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.btn-copy {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+  margin-left: 8px;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* ==========================================
+   ROOM LIST
+   ========================================== */
+
+.room-list { display: flex; flex-direction: column; gap: 8px; }
+
+.room-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-surface);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+}
+
+.room-info { display: flex; flex-direction: column; gap: 2px; }
+.room-host { font-weight: 700; font-size: 14px; }
+.room-count { font-size: 12px; color: var(--text-muted); }
+.empty-hint { text-align: center; color: var(--text-muted); font-size: 14px; padding: 16px; }
+.error-msg { color: var(--primary); font-size: 13px; text-align: center; margin-top: 8px; }
+
+/* ==========================================
+   RULES SUMMARY
+   ========================================== */
+
+.rules-summary {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 20px;
+  border: 1px solid var(--border);
+}
+
+.rules-summary h3 {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+}
+
+.rules-grid { display: flex; flex-direction: column; gap: 10px; }
+
+.rule-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.rule-icon { font-size: 20px; }
+
+/* ==========================================
+   GAME ROOM (WAITING)
+   ========================================== */
+
+.game-room {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px;
+  min-height: 100vh;
+}
+
+.room-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.room-code {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.room-code strong {
+  font-family: monospace;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.waiting-area { text-align: center; }
+
+.waiting-area h2 {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.waiting-hint {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.player-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.player-slot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  border: 2px solid var(--border);
+  transition: border-color 0.2s;
+}
+
+.player-slot.ready { border-color: var(--green); }
+.player-slot.me { border-color: var(--secondary); }
+.player-slot.empty { opacity: 0.4; }
+
+.player-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.player-avatar.empty { background: none; border: 2px dashed var(--border); }
+
+.player-slot-info { flex: 1; }
+.player-slot-name { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+
+.host-badge {
+  background: var(--accent);
+  color: #333;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 800;
+}
+
+.me-badge {
+  background: var(--secondary);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 800;
+}
+
+.ready-status {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ready-status.ready { color: var(--green); }
+.room-actions { margin-top: 8px; }
+
+/* ==========================================
+   GAME BOARD
+   ========================================== */
+
+.game-board {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 8px;
+  gap: 8px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.game-info { display: flex; align-items: center; gap: 12px; }
+
+.round-badge {
+  background: var(--primary);
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.token-count {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ==========================================
+   SCOUT CARD
+   ========================================== */
+
+.scout-card {
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border: 2px solid rgba(255,255,255,0.2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.card-sm { width: 36px; height: 52px; border-radius: 6px; }
+.card-md { width: 52px; height: 76px; }
+.card-lg { width: 64px; height: 94px; border-radius: 10px; }
+
+.card-half {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-number {
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.card-md .card-number { font-size: 20px; }
+.card-lg .card-number { font-size: 26px; }
+.card-sm .card-number { font-size: 14px; }
+
+.card-number-bottom {
+  transform: rotate(180deg);
+  display: block;
+}
+
+.scout-card.clickable { cursor: pointer; }
+.scout-card.clickable:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+  border-color: rgba(255,255,255,0.5);
+}
+
+.scout-card.selected {
+  transform: translateY(-8px);
+  border-color: var(--accent) !important;
+  box-shadow: 0 8px 20px rgba(243, 156, 18, 0.5);
+}
+
+.scout-card.playable { cursor: pointer; }
+
+/* 단면 마당 패 카드 */
+.field-card {
+  align-items: center;
+  justify-content: center;
+}
+
+.card-number-single {
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: 26px;
+}
+.card-lg .card-number-single { font-size: 32px; }
+
+/* 뒷면 */
+.card-back {
+  width: 36px;
+  height: 52px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #1a1a4e, #2d2d7a);
+  border: 2px solid rgba(255,255,255,0.15);
+  flex-shrink: 0;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(255,255,255,0.03) 4px,
+    rgba(255,255,255,0.03) 8px
+  );
+}
+
+/* ==========================================
+   OTHER PLAYERS
+   ========================================== */
+
+.other-players {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.other-player {
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.other-player.current-turn {
+  border-color: var(--accent);
+  background: rgba(243, 156, 18, 0.1);
+}
+
+.other-player-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.other-player-name {
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.turn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.other-hand-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.other-hand-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+/* ==========================================
+   FIELD AREA
+   ========================================== */
+
+.field-area {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 16px;
+  border: 1px solid var(--border);
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.field-area.empty {
+  justify-content: center;
+  opacity: 0.5;
+}
+
+.field-empty-hint { text-align: center; }
+.field-empty-hint span { font-size: 14px; font-weight: 700; color: var(--text-muted); }
+.field-empty-hint p { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+.field-owner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.owner-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.owner-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.field-cards {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.field-card-wrapper {
+  position: relative;
+  cursor: default;
+}
+
+.field-card-wrapper.scoutable {
+  cursor: pointer;
+}
+
+.field-card-wrapper.scoutable:hover .scout-hint {
+  opacity: 1;
+}
+
+.scout-hint {
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #333;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+.scout-instruction {
+  font-size: 12px;
+  color: var(--accent);
+  text-align: center;
+}
+
+/* ==========================================
+   ACTION PANEL
+   ========================================== */
+
+.action-panel {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 12px;
+  border: 1px solid var(--border);
+}
+
+.action-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.action-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.action-btn {
+  background: var(--bg-surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'Nunito', sans-serif;
+  padding: 8px 6px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.action-btn.active {
+  border-color: var(--primary);
+  background: rgba(231, 76, 60, 0.15);
+}
+
+.action-btn.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.action-btn:not(.disabled):hover {
+  border-color: rgba(255,255,255,0.4);
+}
+
+.action-icon { font-size: 20px; }
+.action-name { font-size: 11px; font-weight: 800; }
+.action-desc { font-size: 10px; color: var(--text-muted); }
+
+/* ==========================================
+   MY AREA
+   ========================================== */
+
+.my-area {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 12px;
+  border: 1px solid var(--secondary);
+}
+
+.my-area-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.my-name {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.turn-indicator {
+  color: var(--accent);
+  font-size: 12px;
+  animation: pulse 1s infinite;
+}
+
+.hand-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ==========================================
+   PLAYER HAND
+   ========================================== */
+
+.player-hand-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hand-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hand-actions { display: flex; gap: 6px; align-items: center; }
+
+.hand-cards {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 8px 4px 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hand-cards.my-turn {
+  background: rgba(52, 152, 219, 0.05);
+  border-radius: var(--radius-sm);
+}
+
+.hand-card-wrapper { flex-shrink: 0; }
+
+.selection-hint {
+  font-size: 12px;
+  color: var(--accent);
+  text-align: center;
+}
+
+.selection-hint:has(.✗) { color: var(--primary); }
+
+/* ==========================================
+   MESSAGES & OVERLAYS
+   ========================================== */
+
+.game-message {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.85);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 24px;
+  font-size: 16px;
+  font-weight: 700;
+  z-index: 1000;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+}
+
+.waiting-turn {
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+  padding: 8px;
+}
+
+/* ==========================================
+   ROUND END
+   ========================================== */
+
+.round-end-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(8px);
+}
+
+.round-end-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.round-end-card h2 {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.winner-announce {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+  margin-bottom: 20px;
+}
+
+.round-scores {
+  margin-bottom: 24px;
+}
+
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 4px;
+}
+
+.score-row.winner { background: rgba(46, 204, 113, 0.15); }
+.score-positive { color: var(--green); font-weight: 800; }
+.score-negative { color: var(--primary); font-weight: 800; }
+
+/* ==========================================
+   SCOREBOARD
+   ========================================== */
+
+.scoreboard-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 60px;
+  z-index: 50;
+}
+
+.scoreboard-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: 90%;
+  max-width: 360px;
+  border: 1px solid var(--border);
+}
+
+.scoreboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.score-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.score-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.score-cell { text-align: center; font-weight: 700; }
+.score-cell.total { color: var(--accent); }
+
+/* ==========================================
+   LOADING
+   ========================================== */
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+/* ==========================================
+   SCROLLBAR
+   ========================================== */
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }

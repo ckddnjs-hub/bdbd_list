@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        ".read": true,
+        ".write": true,
+        "players": {
+          "$playerId": {
+            ".read": true,
+            ".write": true
+          }
+        },
+        "gameState": {
+          ".read": true,
+          ".write": true
+        }
+      }
+    }
+  }
+}
