@@ -1,3 +1,4 @@
+
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, update, onValue, push, get, remove, serverTimestamp } from 'firebase/database';
 
@@ -10,7 +11,7 @@ const firebaseConfig = {
   storageBucket: "scout-84ff1.firebasestorage.app",
   messagingSenderId: "431988627614",
   appId: "1:431988627614:web:8b7b5971150290d100c38f",
-};
+}
 
 const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
@@ -44,12 +45,44 @@ export async function toggleReady(roomId, playerId, ready) {
   await update(ref(db, `rooms/${roomId}/players/${playerId}`), { ready });
 }
 
+// 방 나가기: 방장이면 방 전체 삭제, 아니면 해당 플레이어만 제거
+export async function leaveRoom(roomId, playerId) {
+  const snap = await get(ref(db, `rooms/${roomId}`));
+  if (!snap.exists()) return;
+  const room = snap.val();
+  if (room.hostId === playerId) {
+    // 방장이면 방 전체 삭제
+    await remove(ref(db, `rooms/${roomId}`));
+  } else {
+    // 일반 플레이어면 본인만 제거
+    await remove(ref(db, `rooms/${roomId}/players/${playerId}`));
+  }
+}
+
 export async function saveGameState(roomId, gameState, status = 'playing') {
   await update(ref(db, `rooms/${roomId}`), {
     status,
     gameState: JSON.parse(JSON.stringify(gameState, (_, v) => v === undefined ? null : v)),
     updatedAt: serverTimestamp(),
   });
+}
+
+// 감정표현 전송
+export async function sendEmoji(roomId, playerId, emoji, playerName) {
+  const emojiRef = push(ref(db, `rooms/${roomId}/emojis`));
+  await set(emojiRef, {
+    playerId, playerName, emoji, ts: serverTimestamp()
+  });
+  // 5초 후 자동 삭제
+  setTimeout(() => remove(emojiRef), 5000);
+}
+
+// 라운드 종료 확인 (다음 라운드 준비)
+export async function confirmRoundReady(roomId, playerId) {
+  await update(ref(db, `rooms/${roomId}/roundReady`), { [playerId]: true });
+}
+export async function clearRoundReady(roomId) {
+  await remove(ref(db, `rooms/${roomId}/roundReady`));
 }
 
 export function subscribeToRoom(roomId, cb) {
@@ -63,7 +96,6 @@ export function subscribeToRooms(cb) {
   });
 }
 
-// 모든 방 구독 (관리자용)
 export function subscribeToAllRooms(cb) {
   return onValue(ref(db, 'rooms'), snap => {
     const all = snap.val() || {};
@@ -71,8 +103,6 @@ export function subscribeToAllRooms(cb) {
   });
 }
 
-// 방 삭제 (관리자용)
 export async function deleteRoom(roomId) {
-
   await remove(ref(db, `rooms/${roomId}`));
 }
