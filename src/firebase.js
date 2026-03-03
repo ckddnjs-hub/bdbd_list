@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, update, onValue, push, get, serverTimestamp } from 'firebase/database';
+import { getDatabase, ref, set, update, onValue, push, get, remove, serverTimestamp } from 'firebase/database';
 
 // 🔧 여기를 본인 Firebase 프로젝트 설정으로 교체하세요
 const firebaseConfig = {
@@ -14,7 +14,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
-
 
 export async function createRoom(hostName) {
   const roomsRef = ref(db, 'rooms');
@@ -62,4 +61,18 @@ export function subscribeToRooms(cb) {
     const all = snap.val() || {};
     cb(Object.values(all).filter(r => r.status === 'waiting'));
   });
+}
+
+// 모든 방 구독 (관리자용)
+export function subscribeToAllRooms(cb) {
+  return onValue(ref(db, 'rooms'), snap => {
+    const all = snap.val() || {};
+    cb(Object.values(all));
+  });
+}
+
+// 방 삭제 (관리자용)
+export async function deleteRoom(roomId) {
+
+  await remove(ref(db, `rooms/${roomId}`));
 }
