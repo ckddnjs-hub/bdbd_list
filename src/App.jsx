@@ -54,25 +54,27 @@ function CardFace({ top, bot, w, h, fs, border, shadow, style={}, onClick, onMou
         <span style={{fontFamily:"'Noto Sans KR','Helvetica Neue',Arial,sans-serif", fontSize:fs, fontWeight:400, lineHeight:1, userSelect:'none'}}>{top}</span>
         <div style={{position:'absolute', bottom:0, left:0, right:0, height:2, background:'rgba(0,0,0,0.18)'}}/>
       </div>
-      {/* 아래 숫자 — 왼쪽 정렬 (180도 회전이므로 실제론 오른쪽 하단) */}
-      <div style={{flex:1, background:cb.bg, color:cb.text, display:'flex', alignItems:'flex-end', justifyContent:'flex-end', padding:'0 6px 4px 0'}}>
-        <span style={{fontFamily:"'Noto Sans KR','Helvetica Neue',Arial,sans-serif", fontSize:fs, fontWeight:400, lineHeight:1, transform:'rotate(180deg)', display:'block', userSelect:'none'}}>{bot}</span>
+      {/* 아래 숫자 — 180도 회전 후 사용자 기준 왼쪽 정렬: flex-end+flex-end 후 rotate */}
+      <div style={{flex:1, background:cb.bg, color:cb.text, display:'flex', alignItems:'flex-end', justifyContent:'flex-start', padding:'0 0 4px 6px'}}>
+        <span style={{fontFamily:"'Noto Sans KR','Helvetica Neue',Arial,sans-serif", fontSize:fs, fontWeight:400, lineHeight:1, transform:'rotate(180deg)', display:'block', transformOrigin:'center center', userSelect:'none'}}>{bot}</span>
       </div>
     </div>
   );
 }
 
 // ─── 겹치는 손패 레이아웃 계산 ───────────────────────────────
-// 1/3 겹침: step = cardW * 2/3
+// 1/2 겹침: step = cardW * 1/2
 function computeFan(count, containerW, cardW) {
-  const step  = cardW * (2/3);
+  if(count === 0) return [];
+  const step  = cardW * 0.5;
   const total = step * (count - 1) + cardW;
-  const startX = Math.max(4, (containerW - total) / 2);
+  // 왼쪽에서 시작, 컨테이너보다 작으면 가운데 정렬
+  const startX = total < containerW ? Math.max(4, (containerW - total) / 2) : 4;
   const mid = (count - 1) / 2;
   return Array.from({ length: count }, (_, i) => ({
     left:   startX + i * step,
-    rotate: (i - mid) * 2.5,
-    bottom: Math.abs(i - mid) * 2,
+    rotate: (i - mid) * 2,
+    bottom: Math.abs(i - mid) * 1.5,
     zIndex: i,
   }));
 }
@@ -210,20 +212,42 @@ function ScoutAnimation({ card, fromPos, toLabel, onDone }) {
   );
 }
 
-// ─── 감정표현 오버레이 ────────────────────────────────────────
+// ─── 감정표현 오버레이 (화면 중앙 팝업) ─────────────────────
 function EmojiOverlay({ emojis, players }) {
+  if(emojis.length === 0) return null;
+  // 가장 최근 것만 크게, 나머지는 작게 위로 쌓기
   return (
-    <div style={{position:'fixed', top:60, right:14, zIndex:300, display:'flex', flexDirection:'column', gap:8, pointerEvents:'none'}}>
-      {emojis.map((e,i) => {
+    <div style={{position:'fixed', inset:0, pointerEvents:'none', zIndex:400}}>
+      {emojis.map((e, i) => {
         const name = players.find(p=>p.id===e.playerId)?.name || e.playerName || '?';
+        const isLatest = i === emojis.length - 1;
+        const offsetY  = (emojis.length - 1 - i) * 70;
         return (
           <div key={e.id||i} style={{
-            display:'flex', alignItems:'center', gap:8,
-            background:'rgba(10,5,0,0.88)', borderRadius:20, padding:'7px 14px',
-            border:'1.5px solid rgba(255,255,255,0.15)',
-            animation:'slideIn 0.3s ease', boxShadow:'0 4px 18px rgba(0,0,0,0.5)'}}>
-            <span style={{fontSize:26}}>{e.emoji}</span>
-            <span style={{fontSize:13, color:'rgba(255,255,255,0.7)', fontWeight:700}}>{name}</span>
+            position:'absolute',
+            left:'50%', top:'50%',
+            transform:`translate(-50%, calc(-50% - ${offsetY}px))`,
+            transition:'transform 0.4s cubic-bezier(0.34,1.4,0.64,1)',
+            display:'flex', flexDirection:'column', alignItems:'center', gap:4,
+            animation:'emojiPop 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+          }}>
+            <div style={{
+              fontSize: isLatest ? 64 : 40,
+              filter: isLatest ? 'drop-shadow(0 0 20px rgba(255,255,255,0.5))' : 'none',
+              transition:'font-size 0.3s',
+              lineHeight:1,
+            }}>
+              {e.emoji}
+            </div>
+            <div style={{
+              background:'rgba(10,5,0,0.88)', color:'#fff',
+              fontSize: isLatest ? 14 : 11,
+              fontWeight:800, padding:'3px 12px', borderRadius:20,
+              border:'1px solid rgba(255,255,255,0.2)',
+              fontFamily:'Nunito,sans-serif',
+            }}>
+              {name}
+            </div>
           </div>
         );
       })}
@@ -263,7 +287,7 @@ function EmojiPanel({ onSend }) {
   );
 }
 
-// ─── 상대방 패널 ─────────────────────────────────────────────
+// ─── 상대방 패널 (모바일 1줄 가로 스트립) ────────────────────
 function OpponentPanel({ p, gs, players, isCur }) {
   const pi    = players.findIndex(pl=>pl.id===p.id);
   const col   = PC[pi%PC.length];
@@ -274,49 +298,45 @@ function OpponentPanel({ p, gs, players, isCur }) {
 
   return (
     <div style={{
-      background: isCur ? 'rgba(255,184,0,0.15)' : 'rgba(0,0,0,0.5)',
-      border:`2px solid ${isCur?'#FFE066':'rgba(255,255,255,0.1)'}`,
-      borderRadius:14, padding:'9px 12px', backdropFilter:'blur(10px)',
-      boxShadow: isCur ? '0 0 18px rgba(255,184,0,0.3)' : 'none',
-      transition:'all 0.25s', flex:'1 1 120px', maxWidth:185,
+      background: isCur ? 'rgba(255,184,0,0.18)' : 'rgba(0,0,0,0.55)',
+      border:`1.5px solid ${isCur?'#FFE066':'rgba(255,255,255,0.1)'}`,
+      borderRadius:10, padding:'6px 9px', backdropFilter:'blur(10px)',
+      boxShadow: isCur ? '0 0 12px rgba(255,184,0,0.35)' : 'none',
+      transition:'all 0.2s', flex:'1 1 0', minWidth:0,
+      display:'flex', flexDirection:'column', gap:4,
     }}>
-      <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:8}}>
+      {/* 아바타 + 이름 */}
+      <div style={{display:'flex', alignItems:'center', gap:5}}>
         <div style={{position:'relative', flexShrink:0}}>
-          <div style={{width:38, height:38, borderRadius:'50%', background:col,
-            display:'flex', alignItems:'center', justifyContent:'center', fontSize:20,
-            border:`2.5px solid ${isCur?'#FFE066':col}`}}>
+          <div style={{width:26, height:26, borderRadius:'50%', background:col,
+            display:'flex', alignItems:'center', justifyContent:'center', fontSize:14,
+            border:`2px solid ${isCur?'#FFE066':col}`}}>
             {getAvatar(p.id)}
           </div>
-          {isCur && <div style={{position:'absolute', bottom:-2, right:-2, width:10, height:10,
-            borderRadius:'50%', background:'#FFE066', border:'2px solid #000', animation:'pulse 1s infinite'}}/>}
+          {isCur && <div style={{position:'absolute', bottom:-2, right:-2, width:7, height:7,
+            borderRadius:'50%', background:'#FFE066', border:'1.5px solid #000', animation:'pulse 1s infinite'}}/>}
         </div>
-        <div style={{minWidth:0}}>
-          <div style={{fontWeight:800, fontSize:12, color:isCur?'#FFE066':'#eee',
-            whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:85}}>
-            {p.name}
-          </div>
-          {isCur && <div style={{fontSize:10, color:'#FFE066', marginTop:1}}>차례 중...</div>}
-        </div>
+        <span style={{fontWeight:800, fontSize:11, color:isCur?'#FFE066':'#eee',
+          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1, minWidth:0}}>
+          {p.name}
+        </span>
+        {dbl && <span style={{fontSize:11, opacity:0.8}} title="더블 사용 가능">⚡</span>}
       </div>
-      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:4}}>
-        <StatCell icon="🃏" label="손패"   value={hLen} highlight={hLen<=3}/>
-        <StatCell icon="🏅" label="토큰"   value={tok}  color="#FFE066"/>
-        <StatCell icon="📥" label="먹은 패" value={cap}  color="#00DC96"/>
-        <StatCell icon="⚡" label="더블"   value={dbl?'O':'X'} color={dbl?'#FFE066':'rgba(255,255,255,0.2)'}/>
+      {/* 스탯 한줄 */}
+      <div style={{display:'flex', gap:5, justifyContent:'space-between'}}>
+        <MiniStat icon="🃏" value={hLen} highlight={hLen<=3}/>
+        <MiniStat icon="🏅" value={tok}  color="#FFE066"/>
+        <MiniStat icon="📥" value={cap}  color="#00DC96"/>
       </div>
     </div>
   );
 }
 
-function StatCell({ icon, label, value, color='#eee', highlight=false }) {
+function MiniStat({ icon, value, color='#eee', highlight=false }) {
   return (
-    <div style={{background:'rgba(255,255,255,0.07)', borderRadius:7, padding:'4px 7px',
-      display:'flex', alignItems:'center', gap:5}}>
-      <span style={{fontSize:12}}>{icon}</span>
-      <div>
-        <div style={{fontSize:9, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:'0.05em'}}>{label}</div>
-        <div style={{fontSize:13, fontWeight:800, color:highlight?'#FF6B6B':color, lineHeight:1}}>{value}</div>
-      </div>
+    <div style={{display:'flex', alignItems:'center', gap:2, background:'rgba(255,255,255,0.08)', borderRadius:5, padding:'2px 5px', flex:1, justifyContent:'center'}}>
+      <span style={{fontSize:10}}>{icon}</span>
+      <span style={{fontSize:12, fontWeight:800, color:highlight?'#FF6B6B':color, lineHeight:1}}>{value}</span>
     </div>
   );
 }
@@ -775,9 +795,10 @@ function GameBoard({ roomId, playerId, room, gameState:initGs, solo, soloPlayers
 
   const handleEmojiSend = async icon => {
     const name = players.find(p=>p.id===playerId)?.name||'나';
+    const entry = {id:Date.now(), playerId, playerName:name, emoji:icon};
     if(solo){
-      setLiveEmojis(prev=>[...prev, {id:Date.now(), playerId, playerName:name, emoji:icon}]);
-      setTimeout(()=>setLiveEmojis(prev=>prev.slice(1)), 4500);
+      setLiveEmojis(prev=>[...prev, entry]);
+      setTimeout(()=>setLiveEmojis(prev=>prev.filter(e=>e.id!==entry.id)), 3000);
     } else {
       await sendEmoji(roomId, playerId, icon, name);
     }
@@ -816,22 +837,25 @@ function GameBoard({ roomId, playerId, room, gameState:initGs, solo, soloPlayers
   // 뒤집기 선택 화면
   if(mode==='flip_choice'){
     const flipped   = flipEntireHand(myHand);
-    const fanCur    = computeFan(myHand.length, 500, 52);
-    const fanFlip   = computeFan(flipped.length, 500, 52);
-    const cH = 110;
+    // 모바일 고려: 화면 너비에서 패딩 빼고 사용
+    const panelW    = Math.min(window.innerWidth - 32, 540);
+    const innerW    = panelW - 56; // 패딩 양쪽
+    const fanCur    = computeFan(myHand.length, innerW, 40);
+    const fanFlip   = computeFan(flipped.length, innerW, 40);
+    const cH = 100;
     return(
-      <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, backdropFilter:'blur(16px)'}}>
-        <div style={{background:'rgba(20,10,0,0.97)', border:'1px solid rgba(255,200,80,0.25)', borderRadius:22, width:'95%', maxWidth:580, padding:28, boxShadow:'0 20px 60px rgba(0,0,0,0.8)'}}>
-          <h2 style={{textAlign:'center', marginBottom:4, fontSize:21, color:'#fff'}}>라운드 {gs.round||1} 시작!</h2>
-          <p style={{color:'rgba(255,255,255,0.5)', fontSize:13, textAlign:'center', marginBottom:18}}>뒤집기 여부를 선택하고 <strong style={{color:'#FFE066'}}>확인</strong>을 눌러야 진행됩니다</p>
+      <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, backdropFilter:'blur(16px)', padding:'16px'}}>
+        <div style={{background:'rgba(20,10,0,0.97)', border:'1px solid rgba(255,200,80,0.25)', borderRadius:22, width:'100%', maxWidth:540, padding:'22px 28px', boxShadow:'0 20px 60px rgba(0,0,0,0.8)', maxHeight:'90vh', overflowY:'auto'}}>
+          <h2 style={{textAlign:'center', marginBottom:4, fontSize:20, color:'#fff'}}>라운드 {gs.round||1} 시작!</h2>
+          <p style={{color:'rgba(255,255,255,0.5)', fontSize:12, textAlign:'center', marginBottom:14}}>뒤집기 여부를 선택하고 <strong style={{color:'#FFE066'}}>확인</strong>을 눌러야 진행됩니다</p>
 
-          {/* 현재 손패 */}
+          {/* 손패 미리보기 */}
           {[['현재 손패', myHand, fanCur], ['뒤집으면', flipped, fanFlip]].map(([label, cards, fan])=>(
             <div key={label} style={{marginBottom:14}}>
-              <p style={{fontSize:11, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8}}>{label}</p>
-              <div style={{position:'relative', height:cH, overflow:'visible', minWidth:200}}>
+              <p style={{fontSize:11, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6}}>{label}</p>
+              <div style={{position:'relative', height:cH, overflow:'hidden'}}>
                 {cards.map((c,i)=>{
-                  const f = fan[i]||{left:i*34, rotate:0, bottom:0, zIndex:i};
+                  const f = fan[i]||{left:i*20, rotate:0, bottom:0, zIndex:i};
                   return <HandCard key={c.id+(label==='뒤집으면'?'f':'')} card={c} size="sm"
                     left={f.left} bottom={f.bottom} rotate={f.rotate} zIndex={f.zIndex}/>;
                 })}
@@ -905,8 +929,8 @@ function GameBoard({ roomId, playerId, room, gameState:initGs, solo, soloPlayers
         </div>
       </div>
 
-      {/* 상대방 패널 */}
-      <div style={{position:'absolute', top:58, left:10, right:10, zIndex:10, display:'flex', gap:7, flexWrap:'wrap'}}>
+      {/* 상대방 패널 — 무조건 1줄 가로 배치 */}
+      <div style={{position:'absolute', top:58, left:8, right:8, zIndex:10, display:'flex', gap:6, flexWrap:'nowrap'}}>
         {otherPlayers.map(p=>(
           <OpponentPanel key={p.id} p={p} gs={gs} players={players} isCur={p.id===curId}/>
         ))}
@@ -1115,6 +1139,7 @@ function GameBoard({ roomId, playerId, room, gameState:initGs, solo, soloPlayers
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
         @keyframes slideIn{from{transform:translateX(30px);opacity:0}to{transform:translateX(0);opacity:1}}
         @keyframes fadeIn{from{opacity:0;transform:translate(-50%,-60%)}to{opacity:1;transform:translate(-50%,-50%)}}
+        @keyframes emojiPop{0%{opacity:0;transform:translate(-50%,-50%) scale(0.3)}60%{transform:translate(-50%,-50%) scale(1.15)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
         *{box-sizing:border-box}
         ::-webkit-scrollbar{height:3px;width:3px}
         ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:2px}
