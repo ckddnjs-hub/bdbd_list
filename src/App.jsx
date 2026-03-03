@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   createRoom, joinRoom, toggleReady, saveGameState,
   subscribeToRoom, subscribeToRooms, subscribeToAllRooms,
@@ -11,149 +11,105 @@ import {
   isConnectedInHand, isValidCombination, isStrongerThan, getAIAction
 } from './gameLogic';
 
-// ─── 색상 팔레트 ──────────────────────────────────────────────
+// ─── 상수 ────────────────────────────────────────────────────
 const CC = {
-  1:  { bg:'#E8192C', text:'#fff'    },
-  2:  { bg:'#FF6B1A', text:'#fff'    },
-  3:  { bg:'#F5C800', text:'#1a1a1a' },
-  4:  { bg:'#22A845', text:'#fff'    },
-  5:  { bg:'#1A8FE3', text:'#fff'    },
-  6:  { bg:'#1B3FA0', text:'#fff'    },
-  7:  { bg:'#7B2FF7', text:'#fff'    },
-  8:  { bg:'#F0F0F0', text:'#1a1a1a' },
-  9:  { bg:'#909090', text:'#fff'    },
-  10: { bg:'#111111', text:'#fff'    },
+  1:{bg:'#E8192C',text:'#fff'}, 2:{bg:'#FF6B1A',text:'#fff'}, 3:{bg:'#F5C800',text:'#1a1a1a'},
+  4:{bg:'#22A845',text:'#fff'}, 5:{bg:'#1A8FE3',text:'#fff'}, 6:{bg:'#1B3FA0',text:'#fff'},
+  7:{bg:'#7B2FF7',text:'#fff'}, 8:{bg:'#F0F0F0',text:'#1a1a1a'}, 9:{bg:'#909090',text:'#fff'},
+  10:{bg:'#111111',text:'#fff'},
 };
 const PC     = ['#E8192C','#1A8FE3','#22A845','#F5C800','#7B2FF7'];
 const ADMIN  = '토토';
-const AI_THINK = 1200, AI_SHOW = 2200;
+const AI_THINK = 1200, AI_SHOW = 2800;
+const TURN_TIMEOUT = 45;
 const EMOJIS = [
-  { id:'angry',  icon:'😡', label:'분노'  },
-  { id:'sleepy', icon:'😴', label:'졸림'  },
-  { id:'laugh',  icon:'😂', label:'웃음'  },
-  { id:'clap',   icon:'👏', label:'칭찬'  },
-  { id:'sad',    icon:'😢', label:'슬픔'  },
+  {id:'angry', icon:'😡', label:'분노'},
+  {id:'sleepy',icon:'😴', label:'졸림'},
+  {id:'laugh', icon:'😂', label:'웃음'},
+  {id:'clap',  icon:'👏', label:'칭찬'},
+  {id:'sad',   icon:'😢', label:'슬픔'},
 ];
 const AVATARS = ['🦊','🐺','🦁','🐯','🐻','🐼','🦄','🐲','🦅','🦋','🐙','🦈','🦎','🐸','🦩'];
+const CARD_W = 50; // 손패 카드 너비
+const CARD_H = 76;
+const CARD_FS = 17;
+
 function getAvatar(pid) {
-  let h = 0;
-  for (let i = 0; i < pid.length; i++) h = (h * 31 + pid.charCodeAt(i)) >>> 0;
-  return AVATARS[h % AVATARS.length];
+  let h=0; for(let i=0;i<pid.length;i++) h=(h*31+pid.charCodeAt(i))>>>0;
+  return AVATARS[h%AVATARS.length];
 }
 
-// ─── 카드 공통 face ──────────────────────────────────────────
-function CardFace({ top, bot, w, h, fs, border, shadow, style={}, onClick, onMouseEnter, onMouseLeave }) {
-  const ct = CC[top]||CC[1], cb = CC[bot]||CC[1];
+// ─── 공통 버튼 스타일 ─────────────────────────────────────────
+const lBtn=(bg,pad='12px 16px',fs=15,col='#fff')=>({
+  background:bg,border:'none',borderRadius:10,color:col,
+  fontFamily:'Nunito,sans-serif',fontSize:fs,fontWeight:800,
+  padding:pad,cursor:'pointer',transition:'all 0.15s',
+  display:'flex',alignItems:'center',justifyContent:'center'
+});
+const lobbyLbl  ={display:'block',fontSize:11,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:7};
+const lobbyInput={width:'100%',background:'rgba(255,255,255,0.08)',border:'1.5px solid rgba(255,255,255,0.15)',borderRadius:10,color:'#fff',fontFamily:'Nunito,sans-serif',fontSize:16,padding:'12px 16px',outline:'none',boxSizing:'border-box'};
+
+// ─── 카드 Face ────────────────────────────────────────────────
+function CardFace({top,bot,w,h,fs,border,shadow,style={},onClick}) {
+  const ct=CC[top]||CC[1], cb=CC[bot]||CC[1];
   return (
-    <div onClick={onClick} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
-      style={{ width:w, height:h, borderRadius:10, overflow:'hidden', flexShrink:0,
-        border, boxShadow:shadow, display:'flex', flexDirection:'column',
-        position:'relative', cursor: onClick ? 'pointer' : 'default', ...style }}>
-      {/* 위 숫자 — 왼쪽 정렬 */}
-      <div style={{flex:1, background:ct.bg, color:ct.text, display:'flex', alignItems:'flex-start', justifyContent:'flex-start', padding:'4px 0 0 6px', position:'relative'}}>
-        <span style={{fontFamily:"'Noto Sans KR','Helvetica Neue',Arial,sans-serif", fontSize:fs, fontWeight:400, lineHeight:1, userSelect:'none'}}>{top}</span>
-        <div style={{position:'absolute', bottom:0, left:0, right:0, height:2, background:'rgba(0,0,0,0.18)'}}/>
+    <div onClick={onClick} style={{width:w,height:h,borderRadius:9,overflow:'hidden',flexShrink:0,
+      border,boxShadow:shadow,display:'flex',flexDirection:'column',
+      cursor:onClick?'pointer':'default',...style}}>
+      {/* 위 숫자 — 왼쪽 */}
+      <div style={{flex:1,background:ct.bg,color:ct.text,display:'flex',alignItems:'flex-start',justifyContent:'flex-start',padding:'3px 0 0 5px',position:'relative'}}>
+        <span style={{fontFamily:"'Helvetica Neue',Arial,sans-serif",fontSize:fs,fontWeight:500,lineHeight:1,userSelect:'none'}}>{top}</span>
+        <div style={{position:'absolute',bottom:0,left:0,right:0,height:2,background:'rgba(0,0,0,0.15)'}}/>
       </div>
-      {/* 아래 숫자 — 180도 회전 후 사용자 기준 왼쪽 정렬: flex-end+flex-end 후 rotate */}
-      <div style={{flex:1, background:cb.bg, color:cb.text, display:'flex', alignItems:'flex-end', justifyContent:'flex-start', padding:'0 0 4px 6px'}}>
-        <span style={{fontFamily:"'Noto Sans KR','Helvetica Neue',Arial,sans-serif", fontSize:fs, fontWeight:400, lineHeight:1, transform:'rotate(180deg)', display:'block', transformOrigin:'center center', userSelect:'none'}}>{bot}</span>
+      {/* 아래 숫자 — 뒤집힌 상태에서 왼쪽(= 컨테이너 오른쪽 하단, rotate 180) */}
+      <div style={{flex:1,background:cb.bg,color:cb.text,display:'flex',alignItems:'flex-end',justifyContent:'flex-end',padding:'0 5px 3px 0'}}>
+        <span style={{fontFamily:"'Helvetica Neue',Arial,sans-serif",fontSize:fs,fontWeight:500,lineHeight:1,
+          display:'block',userSelect:'none',
+          transform:'rotate(180deg)',transformOrigin:'center center'}}>{bot}</span>
       </div>
     </div>
   );
 }
 
-// ─── 겹치는 손패 레이아웃 계산 ───────────────────────────────
-// 1/2 겹침: step = cardW * 1/2
-function computeFan(count, containerW, cardW) {
-  if(count === 0) return [];
-  const step  = cardW * 0.5;
-  const total = step * (count - 1) + cardW;
-  // 왼쪽에서 시작, 컨테이너보다 작으면 가운데 정렬
-  const startX = total < containerW ? Math.max(4, (containerW - total) / 2) : 4;
-  const mid = (count - 1) / 2;
-  return Array.from({ length: count }, (_, i) => ({
-    left:   startX + i * step,
-    rotate: (i - mid) * 2,
-    bottom: Math.abs(i - mid) * 1.5,
-    zIndex: i,
-  }));
+// ─── 손패 카드 (flip preview용 소형) ─────────────────────────
+function SmallCard({card, dim=false}) {
+  const top=getTopValue(card), bot=getBottomValue(card);
+  return <CardFace top={top} bot={bot} w={38} h={58} fs={13}
+    border="2px solid rgba(255,255,255,0.2)" shadow="0 2px 8px rgba(0,0,0,0.5)"
+    style={{opacity:dim?0.55:1}}/>;
 }
 
-// ─── 손패 카드 (절대 위치, 겹침) ─────────────────────────────
-function HandCard({ card, selected, clickable, onClick, rotate=0, left=0, bottom=0, zIndex=0, size='md', dim=false }) {
-  const top = getTopValue(card), bot = getBottomValue(card);
-  const [hov, setHov] = useState(false);
-  const W  = size==='sm' ? 40  : size==='lg' ? 62  : 52;
-  const H  = size==='sm' ? 60  : size==='lg' ? 94  : 78;
-  const FS = size==='sm' ? 14  : size==='lg' ? 22  : 17;
-  const liftY = selected ? -26 : hov && clickable ? -12 : 0;
+// ─── 마당패 카드 ──────────────────────────────────────────────
+function FieldCard({fc, scoutable, onScout, left=0, zIndex=0, totalCards=1}) {
+  const [flippedView,setFlippedView]=useState(false);
+  const [open,setOpen]=useState(false);
+  const rawTop=fc.flipped?fc.bottom:fc.top, rawBot=fc.flipped?fc.top:fc.bottom;
+  const dTop=flippedView?rawBot:rawTop, dBot=flippedView?rawTop:rawBot;
+  const W=54,H=82,FS=20;
+  const mid=(totalCards-1)/2, rot=(zIndex-mid)*2.5;
+  const active=scoutable&&open;
   return (
-    <div onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
-      style={{ position:'absolute', left, bottom,
-        transform: `rotate(${rotate}deg) translateY(${liftY}px)`,
-        transformOrigin:'bottom center',
-        zIndex: selected ? 1000 : hov ? 500 : zIndex,
-        cursor: clickable ? 'pointer' : 'default',
-        transition:'transform 0.18s cubic-bezier(0.34,1.4,0.64,1)',
-        opacity: dim ? 0.5 : 1,
-      }}>
-      <CardFace top={top} bot={bot} w={W} h={H} fs={FS}
-        onClick={onClick}
-        border={selected?'2.5px solid #FFE066':hov&&clickable?'2.5px solid rgba(255,255,255,0.7)':'2px solid rgba(255,255,255,0.28)'}
-        shadow={selected?'0 0 22px rgba(255,224,102,0.9),0 8px 24px rgba(0,0,0,0.7)':hov&&clickable?'0 12px 28px rgba(0,0,0,0.7)':'0 4px 14px rgba(0,0,0,0.6)'}/>
-      {selected && <div style={{position:'absolute',inset:0,borderRadius:10,background:'rgba(255,224,102,0.1)',pointerEvents:'none'}}/>}
-    </div>
-  );
-}
-
-// ─── 마당패 카드 (겹침, 클릭 선택 + hover) ────────────────────
-function FieldCard({ fc, scoutable, onScout, left=0, zIndex=0, totalCards=1 }) {
-  const [flippedView, setFlippedView] = useState(false);
-  const [selected,    setSelected]    = useState(false); // PC 클릭 지원
-  const [hov,         setHov]         = useState(false);
-
-  const rawTop = fc.flipped ? fc.bottom : fc.top;
-  const rawBot = fc.flipped ? fc.top    : fc.bottom;
-  const dTop = flippedView ? rawBot : rawTop;
-  const dBot = flippedView ? rawTop : rawBot;
-  const W=58, H=86, FS=21;
-  const mid = (totalCards - 1) / 2;
-  const rot = (zIndex - mid) * 2.8;
-  const active = scoutable && (hov || selected);
-
-  const handleClick = () => {
-    if (!scoutable) return;
-    setSelected(v => !v);
-  };
-
-  return (
-    <div style={{ position:'absolute', left, bottom:0, zIndex: active ? 999 : zIndex }}
-      onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}>
-      <div style={{
-        transform: `rotate(${rot}deg) translateY(${active ? -16 : 0}px)`,
-        transformOrigin:'bottom center',
-        transition:'transform 0.18s cubic-bezier(0.34,1.4,0.64,1)',
-      }}>
+    <div style={{position:'absolute',left,bottom:0,zIndex:active?999:zIndex}}>
+      <div style={{transform:`rotate(${rot}deg) translateY(${active?-14:0}px)`,transformOrigin:'bottom center',transition:'transform 0.18s cubic-bezier(0.34,1.4,0.64,1)'}}>
         <CardFace top={dTop} bot={dBot} w={W} h={H} fs={FS}
-          onClick={handleClick}
-          border={scoutable?(active?'3px solid #FFE066':'2.5px solid rgba(255,224,102,0.55)'):'2px solid rgba(255,255,255,0.22)'}
-          shadow={active?'0 0 22px rgba(255,224,102,0.85),0 8px 24px rgba(0,0,0,0.7)':'0 4px 14px rgba(0,0,0,0.55)'}/>
+          onClick={()=>{ if(scoutable) setOpen(v=>!v); }}
+          border={scoutable?(open?'2.5px solid #FFE066':'2px solid rgba(255,224,102,0.5)'):'2px solid rgba(255,255,255,0.2)'}
+          shadow={active?'0 0 20px rgba(255,224,102,0.8),0 6px 20px rgba(0,0,0,0.7)':'0 3px 12px rgba(0,0,0,0.5)'}/>
       </div>
-      {/* 스카우트 버튼 패널 — hover 또는 클릭 선택 시 */}
-      {active && (
-        <div style={{position:'absolute', top:-70, left:'50%', transform:'translateX(-50%)',
-          display:'flex', gap:4, zIndex:1000, whiteSpace:'nowrap',
-          background:'rgba(10,5,0,0.88)', borderRadius:9, padding:'6px 8px',
-          border:'1.5px solid rgba(255,224,102,0.4)', boxShadow:'0 4px 18px rgba(0,0,0,0.7)'}}>
-          <button onClick={e=>{e.stopPropagation(); setFlippedView(v=>!v);}}
-            style={{fontSize:11, padding:'4px 9px', border:'none', borderRadius:5, cursor:'pointer',
+      {active&&(
+        <div style={{position:'absolute',top:-68,left:'50%',transform:'translateX(-50%)',
+          display:'flex',gap:4,zIndex:1000,whiteSpace:'nowrap',
+          background:'rgba(10,5,0,0.92)',borderRadius:8,padding:'5px 7px',
+          border:'1.5px solid rgba(255,224,102,0.4)'}}>
+          <button onClick={e=>{e.stopPropagation();setFlippedView(v=>!v);}}
+            style={{fontSize:11,padding:'4px 8px',border:'none',borderRadius:5,cursor:'pointer',
               background:flippedView?'#FFE066':'rgba(255,255,255,0.12)',
-              color:flippedView?'#1a1a1a':'#eee', fontFamily:'Nunito,sans-serif', fontWeight:700}}>
-            ↕ {flippedView?`뒤집음 (${dTop}/${dBot})`:'미리보기'}
+              color:flippedView?'#1a1a1a':'#eee',fontFamily:'Nunito,sans-serif',fontWeight:700}}>
+            ↕ 뒤집음{flippedView?' ✓':''}
           </button>
-          <button onClick={e=>{e.stopPropagation(); onScout(flippedView); setFlippedView(false); setSelected(false);}}
-            style={{fontSize:11, padding:'4px 9px', border:'none', borderRadius:5, cursor:'pointer',
-              background:'#FFE066', color:'#1a1a1a', fontFamily:'Nunito,sans-serif', fontWeight:800}}>
+          <button onClick={e=>{e.stopPropagation();onScout(flippedView);setFlippedView(false);setOpen(false);}}
+            style={{fontSize:11,padding:'4px 8px',border:'none',borderRadius:5,cursor:'pointer',
+              background:'#FFE066',color:'#1a1a1a',fontFamily:'Nunito,sans-serif',fontWeight:800}}>
             가져오기
           </button>
         </div>
@@ -163,121 +119,121 @@ function FieldCard({ fc, scoutable, onScout, left=0, zIndex=0, totalCards=1 }) {
 }
 
 // ─── 삽입 버튼 ────────────────────────────────────────────────
-function InsertBtn({ onClick, left, zIndex=200 }) {
-  const [h, setH] = useState(false);
+function InsertBtn({onClick}) {
+  const [h,setH]=useState(false);
   return (
-    <div style={{position:'absolute', left, bottom:2, zIndex}}>
-      <button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
-        style={{width:h?26:12, height:78, background:h?'rgba(0,220,150,0.45)':'rgba(0,220,150,0.12)',
-          border:'2px dashed #00DC96', borderRadius:7, cursor:'pointer', transition:'all 0.14s',
-          padding:0, display:'flex', alignItems:'center', justifyContent:'center',
-          color:'#00DC96', fontSize:h?17:0, fontWeight:900}}>
-        {h&&'↓'}
-      </button>
-    </div>
+    <button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
+      style={{width:h?22:10,height:CARD_H,flexShrink:0,
+        background:h?'rgba(0,220,150,0.45)':'rgba(0,220,150,0.12)',
+        border:'2px dashed #00DC96',borderRadius:6,cursor:'pointer',transition:'all 0.13s',
+        padding:0,display:'flex',alignItems:'center',justifyContent:'center',
+        color:'#00DC96',fontSize:h?15:0,fontWeight:900}}>
+      {h&&'↓'}
+    </button>
   );
 }
 
-// ─── 스카우트 카드 이동 애니메이션 ───────────────────────────
-function ScoutAnimation({ card, fromPos, toLabel, onDone }) {
-  const [phase, setPhase] = useState(0); // 0=fly, 1=show
-  const top = getTopValue(card), bot = getBottomValue(card);
-  useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), 600);
-    const t2 = setTimeout(() => onDone(), 2200);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
+// ─── 상대방 패널 (1줄 압축) ───────────────────────────────────
+function OpponentPanel({p, gs, players, isCur, emoji}) {
+  const pi=players.findIndex(pl=>pl.id===p.id);
+  const col=PC[pi%PC.length];
+  const hLen=gs.hands?.[p.id]?.length||0;
+  const tok=gs.scores?.[p.id]||0;
+  const cap=gs.capturedCards?.[p.id]||0;
+  const dbl=!gs.doubleActionUsed?.[p.id];
   return (
-    <div style={{position:'fixed', inset:0, pointerEvents:'none', zIndex:500}}>
-      {/* 날아가는 카드 */}
-      <div style={{
-        position:'absolute', left:'50%', top:'50%',
-        transform: phase===0 ? 'translate(-50%,-50%) scale(1.2)' : 'translate(-50%, 60%) scale(0.7)',
-        transition:'transform 0.55s cubic-bezier(0.4,0,0.2,1), opacity 0.55s',
-        opacity: phase===0 ? 1 : 0,
-      }}>
-        <CardFace top={top} bot={bot} w={60} h={90} fs={22}
-          border="3px solid #FFE066" shadow="0 0 30px rgba(255,224,102,0.9)"/>
-      </div>
-      {/* 텍스트 알림 */}
-      {phase===1 && (
-        <div style={{position:'absolute', top:'38%', left:'50%', transform:'translate(-50%,-50%)',
-          background:'rgba(10,5,0,0.93)', color:'#FFE066', padding:'12px 26px', borderRadius:24,
-          fontSize:17, fontWeight:800, border:'2px solid rgba(255,224,102,0.5)',
-          boxShadow:'0 8px 30px rgba(0,0,0,0.6)', animation:'fadeIn 0.2s ease'}}>
-          {toLabel} 가 <span style={{color:'#fff'}}>{top}/{bot}</span> 획득!
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── 감정표현 오버레이 (화면 중앙 팝업) ─────────────────────
-function EmojiOverlay({ emojis, players }) {
-  if(emojis.length === 0) return null;
-  // 가장 최근 것만 크게, 나머지는 작게 위로 쌓기
-  return (
-    <div style={{position:'fixed', inset:0, pointerEvents:'none', zIndex:400}}>
-      {emojis.map((e, i) => {
-        const name = players.find(p=>p.id===e.playerId)?.name || e.playerName || '?';
-        const isLatest = i === emojis.length - 1;
-        const offsetY  = (emojis.length - 1 - i) * 70;
-        return (
-          <div key={e.id||i} style={{
-            position:'absolute',
-            left:'50%', top:'50%',
-            transform:`translate(-50%, calc(-50% - ${offsetY}px))`,
-            transition:'transform 0.4s cubic-bezier(0.34,1.4,0.64,1)',
-            display:'flex', flexDirection:'column', alignItems:'center', gap:4,
-            animation:'emojiPop 0.4s cubic-bezier(0.34,1.56,0.64,1)',
-          }}>
-            <div style={{
-              fontSize: isLatest ? 64 : 40,
-              filter: isLatest ? 'drop-shadow(0 0 20px rgba(255,255,255,0.5))' : 'none',
-              transition:'font-size 0.3s',
-              lineHeight:1,
-            }}>
-              {e.emoji}
-            </div>
-            <div style={{
-              background:'rgba(10,5,0,0.88)', color:'#fff',
-              fontSize: isLatest ? 14 : 11,
-              fontWeight:800, padding:'3px 12px', borderRadius:20,
-              border:'1px solid rgba(255,255,255,0.2)',
-              fontFamily:'Nunito,sans-serif',
-            }}>
-              {name}
-            </div>
+    <div style={{flex:'1 1 0',minWidth:0,
+      background:isCur?'rgba(255,184,0,0.18)':'rgba(0,0,0,0.55)',
+      border:`1.5px solid ${isCur?'#FFE066':'rgba(255,255,255,0.1)'}`,
+      borderRadius:10,padding:'6px 8px',backdropFilter:'blur(10px)',
+      boxShadow:isCur?'0 0 12px rgba(255,184,0,0.3)':'none',
+      transition:'all 0.2s',display:'flex',flexDirection:'column',gap:4,position:'relative'}}>
+      {/* 이모지 팝업 — 패널 아래 */}
+      {emoji&&<div style={{position:'absolute',bottom:-30,left:'50%',transform:'translateX(-50%)',
+        fontSize:22,zIndex:50,animation:'emojiPop 0.3s ease',pointerEvents:'none',
+        background:'rgba(10,5,0,0.8)',borderRadius:20,padding:'2px 8px',
+        border:'1px solid rgba(255,255,255,0.2)',whiteSpace:'nowrap',
+        display:'flex',alignItems:'center',gap:4}}>
+        {emoji}
+      </div>}
+      {/* 아바타 + 이름 + 더블 */}
+      <div style={{display:'flex',alignItems:'center',gap:5}}>
+        <div style={{position:'relative',flexShrink:0}}>
+          <div style={{width:24,height:24,borderRadius:'50%',background:col,
+            display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,
+            border:`2px solid ${isCur?'#FFE066':col}`}}>
+            {getAvatar(p.id)}
           </div>
-        );
-      })}
+          {isCur&&<div style={{position:'absolute',bottom:-2,right:-2,width:6,height:6,
+            borderRadius:'50%',background:'#FFE066',border:'1.5px solid #000',animation:'pulse 1s infinite'}}/>}
+        </div>
+        <span style={{fontWeight:800,fontSize:10,color:isCur?'#FFE066':'#eee',
+          whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',flex:1,minWidth:0}}>
+          {p.name}
+        </span>
+        {dbl&&<span style={{fontSize:10}} title="더블 가능">⚡</span>}
+      </div>
+      {/* 미니 스탯 */}
+      <div style={{display:'flex',gap:3}}>
+        {[['🃏',hLen,hLen<=3?'#FF6B6B':'#eee'],['🏅',tok,'#FFE066'],['📥',cap,'#00DC96']].map(([ic,v,c])=>(
+          <div key={ic} style={{flex:1,background:'rgba(255,255,255,0.08)',borderRadius:4,
+            padding:'2px 3px',display:'flex',alignItems:'center',justifyContent:'center',gap:2}}>
+            <span style={{fontSize:9}}>{ic}</span>
+            <span style={{fontSize:11,fontWeight:800,color:c,lineHeight:1}}>{v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── 행동 알림 팝업 ───────────────────────────────────────────
+// 플레이/스카우트 모두 카드 이미지 표시, 2.8초 유지
+function ActionNotice({action}) {
+  if(!action) return null;
+  return (
+    <div style={{position:'absolute',top:58,right:8,zIndex:50,
+      background:'rgba(0,0,0,0.85)',borderRadius:12,padding:'9px 12px',
+      border:'1.5px solid rgba(255,200,80,0.4)',backdropFilter:'blur(12px)',maxWidth:220,
+      animation:'slideInRight 0.25s ease'}}>
+      <div style={{fontSize:12,fontWeight:800,color:'#FFE066',marginBottom:5}}>
+        {action.type==='play'?'🃏':'🔍'} {action.name} — {action.type==='play'?'플레이':'스카우트'}
+      </div>
+      <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
+        {(action.cards||[]).map((c,i)=>{
+          const top=getTopValue(c),bot=getBottomValue(c);
+          return <CardFace key={i} top={top} bot={bot} w={36} h={54} fs={12}
+            border="1.5px solid rgba(255,224,102,0.4)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>;
+        })}
+      </div>
+      {action.type==='scout'&&<div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:4}}>→ 손패로 가져감</div>}
     </div>
   );
 }
 
 // ─── 감정표현 버튼 패널 ───────────────────────────────────────
-function EmojiPanel({ onSend }) {
-  const [open, setOpen] = useState(false);
+function EmojiPanel({onSend}) {
+  const [open,setOpen]=useState(false);
   return (
     <div style={{position:'relative'}}>
       <button onClick={()=>setOpen(v=>!v)}
-        style={{width:38, height:38, borderRadius:'50%', background:open?'rgba(255,224,102,0.2)':'rgba(0,0,0,0.45)',
-          border:`2px solid ${open?'#FFE066':'rgba(255,255,255,0.2)'}`, fontSize:18, cursor:'pointer',
-          backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center'}}>
-        😊
+        style={{background:open?'rgba(255,224,102,0.25)':'rgba(255,255,255,0.12)',
+          border:`1.5px solid ${open?'#FFE066':'rgba(255,255,255,0.2)'}`,
+          borderRadius:16,padding:'3px 8px',cursor:'pointer',
+          fontSize:14,display:'flex',alignItems:'center',gap:3,
+          color:'#fff',fontFamily:'Nunito,sans-serif',fontWeight:700,fontSize:12}}>
+        😊 <span style={{fontSize:11}}>감정</span>
       </button>
-      {open && (
-        <div style={{position:'absolute', bottom:46, right:0, display:'flex', gap:6,
-          background:'rgba(10,5,0,0.92)', borderRadius:16, padding:'8px 10px',
-          border:'1.5px solid rgba(255,255,255,0.12)', boxShadow:'0 8px 28px rgba(0,0,0,0.7)',
-          zIndex:100, whiteSpace:'nowrap'}}>
+      {open&&(
+        <div style={{position:'absolute',bottom:34,left:0,display:'flex',gap:5,
+          background:'rgba(10,5,0,0.94)',borderRadius:14,padding:'7px 9px',
+          border:'1.5px solid rgba(255,255,255,0.12)',boxShadow:'0 8px 28px rgba(0,0,0,0.7)',
+          zIndex:200,whiteSpace:'nowrap'}}>
           {EMOJIS.map(e=>(
-            <button key={e.id} onClick={()=>{onSend(e.icon); setOpen(false);}}
-              title={e.label}
-              style={{width:38, height:38, borderRadius:10, background:'rgba(255,255,255,0.08)',
-                border:'1.5px solid rgba(255,255,255,0.12)', fontSize:22, cursor:'pointer',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                transition:'all 0.13s'}}>
+            <button key={e.id} onClick={()=>{onSend(e.icon);setOpen(false);}} title={e.label}
+              style={{width:36,height:36,borderRadius:8,background:'rgba(255,255,255,0.08)',
+                border:'1.5px solid rgba(255,255,255,0.12)',fontSize:20,cursor:'pointer',
+                display:'flex',alignItems:'center',justifyContent:'center'}}>
               {e.icon}
             </button>
           ))}
@@ -287,167 +243,157 @@ function EmojiPanel({ onSend }) {
   );
 }
 
-// ─── 상대방 패널 (모바일 1줄 가로 스트립) ────────────────────
-function OpponentPanel({ p, gs, players, isCur }) {
-  const pi    = players.findIndex(pl=>pl.id===p.id);
-  const col   = PC[pi%PC.length];
-  const hLen  = gs.hands?.[p.id]?.length || 0;
-  const tok   = gs.scores?.[p.id] || 0;
-  const cap   = gs.capturedCards?.[p.id] || 0;
-  const dbl   = !gs.doubleActionUsed?.[p.id];
-
+// ─── 라운드 종료 화면 ─────────────────────────────────────────
+function RoundEndScreen({gs, roundEnd, players, getName, playerId, solo, onConfirm}) {
+  const [confirmed,setConfirmed]=useState(false);
+  const sorted=[...gs.players].sort((a,b)=>(roundEnd.tot[b]||0)-(roundEnd.tot[a]||0));
   return (
-    <div style={{
-      background: isCur ? 'rgba(255,184,0,0.18)' : 'rgba(0,0,0,0.55)',
-      border:`1.5px solid ${isCur?'#FFE066':'rgba(255,255,255,0.1)'}`,
-      borderRadius:10, padding:'6px 9px', backdropFilter:'blur(10px)',
-      boxShadow: isCur ? '0 0 12px rgba(255,184,0,0.35)' : 'none',
-      transition:'all 0.2s', flex:'1 1 0', minWidth:0,
-      display:'flex', flexDirection:'column', gap:4,
-    }}>
-      {/* 아바타 + 이름 */}
-      <div style={{display:'flex', alignItems:'center', gap:5}}>
-        <div style={{position:'relative', flexShrink:0}}>
-          <div style={{width:26, height:26, borderRadius:'50%', background:col,
-            display:'flex', alignItems:'center', justifyContent:'center', fontSize:14,
-            border:`2px solid ${isCur?'#FFE066':col}`}}>
-            {getAvatar(p.id)}
-          </div>
-          {isCur && <div style={{position:'absolute', bottom:-2, right:-2, width:7, height:7,
-            borderRadius:'50%', background:'#FFE066', border:'1.5px solid #000', animation:'pulse 1s infinite'}}/>}
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.93)',overflowY:'auto',zIndex:200,backdropFilter:'blur(16px)'}}>
+      <div style={{maxWidth:520,margin:'0 auto',padding:'28px 16px 40px'}}>
+        <div style={{textAlign:'center',marginBottom:22}}>
+          <div style={{fontSize:44,marginBottom:6}}>🏆</div>
+          <h2 style={{color:'#fff',fontSize:24,marginBottom:4}}>라운드 {gs.round} 종료!</h2>
+          <p style={{color:'#FFE066',fontWeight:800,fontSize:17}}>{getName(roundEnd.wid)} 승리!</p>
         </div>
-        <span style={{fontWeight:800, fontSize:11, color:isCur?'#FFE066':'#eee',
-          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1, minWidth:0}}>
-          {p.name}
-        </span>
-        {dbl && <span style={{fontSize:11, opacity:0.8}} title="더블 사용 가능">⚡</span>}
-      </div>
-      {/* 스탯 한줄 */}
-      <div style={{display:'flex', gap:5, justifyContent:'space-between'}}>
-        <MiniStat icon="🃏" value={hLen} highlight={hLen<=3}/>
-        <MiniStat icon="🏅" value={tok}  color="#FFE066"/>
-        <MiniStat icon="📥" value={cap}  color="#00DC96"/>
+        {gs.players.map((pid,pi)=>{
+          const isW=pid===roundEnd.wid, pColor=PC[pi%PC.length];
+          const hand=gs.hands?.[pid]||[], tokens=gs.scores?.[pid]||0;
+          const cap=gs.capturedCards?.[pid]||0, penalty=hand.length, score=roundEnd.sc[pid]||0;
+          const ownedField=gs.field?.ownerId===pid?gs.field.cards:[];
+          return (
+            <div key={pid} style={{background:isW?'rgba(0,220,150,0.1)':'rgba(255,255,255,0.05)',
+              border:`2px solid ${isW?'#00DC96':'rgba(255,255,255,0.1)'}`,
+              borderRadius:14,padding:'14px 16px',marginBottom:10}}>
+              <div style={{display:'flex',alignItems:'center',gap:9,marginBottom:10}}>
+                <div style={{width:40,height:40,borderRadius:'50%',background:pColor,flexShrink:0,
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,
+                  border:`3px solid ${isW?'#00DC96':'rgba(255,255,255,0.2)'}`}}>{getAvatar(pid)}</div>
+                <div style={{flex:1}}>
+                  <span style={{fontWeight:800,fontSize:15,color:isW?'#00DC96':'#eee'}}>{getName(pid)}</span>
+                  {isW&&<span style={{marginLeft:8,background:'#00DC96',color:'#0a2a1a',fontSize:10,padding:'1px 7px',borderRadius:4,fontWeight:800}}>🏆 승자</span>}
+                  {pid===playerId&&<span style={{marginLeft:6,background:'rgba(255,255,255,0.15)',color:'#fff',fontSize:10,padding:'1px 7px',borderRadius:4}}>나</span>}
+                </div>
+                <div style={{fontSize:20,fontWeight:900,color:score>=0?'#00DC96':'#FF6B6B'}}>{score>=0?'+':''}{score}</div>
+              </div>
+              <div style={{display:'flex',gap:7,marginBottom:10,flexWrap:'wrap'}}>
+                {[['🏅 토큰',`+${tokens}`,'#FFE066'],['📥 먹은 패',`+${cap}장`,'#00DC96'],
+                  ...(!isW?[['✗ 손패',`-${penalty}장`,'#FF6B6B']]:[])]
+                  .map(([lb,v,c])=>(
+                  <div key={lb} style={{background:'rgba(255,255,255,0.07)',borderRadius:7,padding:'4px 9px',display:'flex',flexDirection:'column',alignItems:'center'}}>
+                    <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase'}}>{lb}</span>
+                    <span style={{fontSize:13,fontWeight:800,color:c}}>{v}</span>
+                  </div>
+                ))}
+              </div>
+              {hand.length>0?(
+                <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
+                  {hand.map((c,i)=><SmallCard key={i} card={c} dim={!isW}/>)}
+                </div>
+              ):<p style={{fontSize:12,color:'#00DC96'}}>✓ 손패 소진!</p>}
+            </div>
+          );
+        })}
+        {/* 누적 순위 */}
+        <div style={{background:'rgba(255,255,255,0.04)',borderRadius:12,padding:'12px 16px',marginBottom:18,border:'1px solid rgba(255,255,255,0.08)'}}>
+          <p style={{fontSize:11,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>누적 점수</p>
+          {sorted.map((pid,rank)=>{
+            const pi=gs.players.indexOf(pid);
+            return(
+              <div key={pid} style={{display:'flex',alignItems:'center',gap:9,marginBottom:7}}>
+                <span style={{fontSize:13,fontWeight:900,color:rank===0?'#FFE066':'rgba(255,255,255,0.3)',width:18,textAlign:'center'}}>{rank+1}</span>
+                <div style={{width:28,height:28,borderRadius:'50%',background:PC[pi%PC.length],flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15}}>{getAvatar(pid)}</div>
+                <span style={{flex:1,fontWeight:700,fontSize:13,color:rank===0?'#FFE066':'#eee'}}>{getName(pid)}</span>
+                <span style={{fontWeight:900,fontSize:17,color:rank===0?'#FFE066':'#eee'}}>{roundEnd.tot[pid]||0}</span>
+              </div>
+            );
+          })}
+        </div>
+        {!confirmed
+          ?<button style={{...lBtn('#E8192C','15px',15),width:'100%'}} onClick={()=>{setConfirmed(true);onConfirm();}}>✓ 확인 (다음 라운드 준비)</button>
+          :<div style={{textAlign:'center',color:'rgba(255,255,255,0.4)',fontSize:13,padding:14}}>다른 플레이어 확인 대기 중...</div>}
       </div>
     </div>
   );
 }
-
-function MiniStat({ icon, value, color='#eee', highlight=false }) {
-  return (
-    <div style={{display:'flex', alignItems:'center', gap:2, background:'rgba(255,255,255,0.08)', borderRadius:5, padding:'2px 5px', flex:1, justifyContent:'center'}}>
-      <span style={{fontSize:10}}>{icon}</span>
-      <span style={{fontSize:12, fontWeight:800, color:highlight?'#FF6B6B':color, lineHeight:1}}>{value}</span>
-    </div>
-  );
-}
-
-// ─── 공통 스타일 ──────────────────────────────────────────────
-const lBtn = (bg, pad='12px 16px', fs=15, col='#fff') => ({
-  background:bg, border:'none', borderRadius:10, color:col,
-  fontFamily:'Nunito,sans-serif', fontSize:fs, fontWeight:800,
-  padding:pad, cursor:'pointer', transition:'all 0.15s',
-  display:'flex', alignItems:'center', justifyContent:'center'
-});
-const lobbyLbl   = {display:'block', fontSize:11, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7};
-const lobbyInput = {width:'100%', background:'rgba(255,255,255,0.08)', border:'1.5px solid rgba(255,255,255,0.15)', borderRadius:10, color:'#fff', fontFamily:'Nunito,sans-serif', fontSize:16, padding:'12px 16px', outline:'none', boxSizing:'border-box'};
 
 // ─── 로비 ─────────────────────────────────────────────────────
-function Lobby({ onEnter }) {
-  const [name,setName]     = useState('');
-  const [code,setCode]     = useState('');
-  const [tab,setTab]       = useState('create');
-  const [rooms,setRooms]   = useState([]);
-  const [allRooms,setAllRooms] = useState([]);
-  const [loading,setLoading]  = useState(false);
-  const [err,setErr]           = useState('');
-  const [deleting,setDeleting] = useState(null);
-  const isAdmin = name.trim() === ADMIN;
+function Lobby({onEnter}) {
+  const [name,setName]=useState(''), [code,setCode]=useState('');
+  const [tab,setTab]=useState('create'), [rooms,setRooms]=useState([]);
+  const [allRooms,setAllRooms]=useState([]), [loading,setLoading]=useState(false);
+  const [err,setErr]=useState(''), [deleting,setDeleting]=useState(null);
+  const isAdmin=name.trim()===ADMIN;
   useEffect(()=>subscribeToRooms(setRooms),[]);
   useEffect(()=>{ if(isAdmin) return subscribeToAllRooms(setAllRooms); },[isAdmin]);
-
-  const go = async fn => {
-    if(!name.trim()) return setErr('닉네임을 입력해주세요.');
-    setLoading(true); setErr('');
-    try{ onEnter(await fn()); } catch(e){ setErr(e.message); } finally{ setLoading(false); }
-  };
-  const handleDelete = async rid => {
-    setDeleting(rid); try{ await deleteRoom(rid); } finally{ setDeleting(null); }
-  };
-  const statusLabel = r => r.status==='playing'
-    ? {label:'게임 중', color:'#E8192C'}
-    : {label:`대기 ${Object.keys(r.players||{}).length}명`, color:'#22A845'};
-
+  const go=async fn=>{ if(!name.trim()) return setErr('닉네임 입력'); setLoading(true);setErr(''); try{onEnter(await fn());}catch(e){setErr(e.message);}finally{setLoading(false);} };
+  const sl=r=>r.status==='playing'?{label:'게임 중',color:'#E8192C'}:{label:`대기 ${Object.keys(r.players||{}).length}명`,color:'#22A845'};
   return (
-    <div style={{minHeight:'100vh', background:'radial-gradient(ellipse at 30% 20%, #c17a2a 0%, #8b4a0a 40%, #5a2d00 100%)', display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
-      <div style={{width:'100%', maxWidth:440}}>
-        <div style={{textAlign:'center', marginBottom:32}}>
-          <div style={{fontFamily:"'Black Han Sans',sans-serif", fontSize:76, lineHeight:1, textShadow:'0 4px 20px rgba(0,0,0,0.5)', letterSpacing:'-2px'}}>
+    <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at 30% 20%, #c17a2a 0%, #8b4a0a 40%, #5a2d00 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{width:'100%',maxWidth:440}}>
+        <div style={{textAlign:'center',marginBottom:28}}>
+          <div style={{fontFamily:"'Black Han Sans',sans-serif",fontSize:72,lineHeight:1,textShadow:'0 4px 20px rgba(0,0,0,0.5)',letterSpacing:'-2px'}}>
             <span style={{color:'#FFE066'}}>S</span><span style={{color:'#fff'}}>COUT</span><span style={{color:'#FF6B35'}}>!</span>
           </div>
-          <p style={{color:'rgba(255,255,255,0.5)', fontSize:12, marginTop:6, letterSpacing:'0.15em', textTransform:'uppercase'}}>Scout a card · Build your hands</p>
+          <p style={{color:'rgba(255,255,255,0.45)',fontSize:12,marginTop:5,letterSpacing:'0.15em',textTransform:'uppercase'}}>Scout a card · Build your hands</p>
         </div>
-        <div style={{background:'rgba(0,0,0,0.45)', borderRadius:20, padding:26, backdropFilter:'blur(12px)', border:'1px solid rgba(255,255,255,0.1)'}}>
-          <div style={{marginBottom:14}}>
-            <label style={lobbyLbl}>닉네임{isAdmin&&<span style={{marginLeft:6, background:'#FFE066', color:'#1a1a1a', fontSize:10, padding:'1px 7px', borderRadius:4, fontWeight:800}}>👑 관리자</span>}</label>
+        <div style={{background:'rgba(0,0,0,0.45)',borderRadius:20,padding:24,backdropFilter:'blur(12px)',border:'1px solid rgba(255,255,255,0.1)'}}>
+          <div style={{marginBottom:13}}>
+            <label style={lobbyLbl}>닉네임{isAdmin&&<span style={{marginLeft:6,background:'#FFE066',color:'#1a1a1a',fontSize:10,padding:'1px 7px',borderRadius:4,fontWeight:800}}>👑 관리자</span>}</label>
             <input value={name} onChange={e=>setName(e.target.value)} placeholder="닉네임 입력" maxLength={12}
-              style={{...lobbyInput, border:`1.5px solid ${isAdmin?'#FFE066':'rgba(255,255,255,0.15)'}`, transition:'border 0.2s'}}/>
+              style={{...lobbyInput,border:`1.5px solid ${isAdmin?'#FFE066':'rgba(255,255,255,0.15)'}`,transition:'border 0.2s'}}/>
           </div>
-          <button style={{...lBtn('linear-gradient(135deg,#7B2FF7,#1B3FA0)','13px',15), width:'100%', marginBottom:14}}
-            onClick={()=>onEnter({solo:true, playerName:name.trim()||'플레이어'})}>
+          <button style={{...lBtn('linear-gradient(135deg,#7B2FF7,#1B3FA0)','12px',14),width:'100%',marginBottom:13}}
+            onClick={()=>onEnter({solo:true,playerName:name.trim()||'플레이어'})}>
             🤖 AI와 혼자 플레이 (나 + AI 3명)
           </button>
-          <div style={{display:'flex', gap:3, background:'rgba(0,0,0,0.3)', borderRadius:10, padding:4, marginBottom:14}}>
+          <div style={{display:'flex',gap:3,background:'rgba(0,0,0,0.3)',borderRadius:10,padding:4,marginBottom:13}}>
             {['create','join','browse'].map(t=>(
-              <button key={t} onClick={()=>setTab(t)} style={{flex:1, background:tab===t?'#E8192C':'transparent', border:'none', color:tab===t?'#fff':'rgba(255,255,255,0.4)', borderRadius:7, padding:'9px 4px', cursor:'pointer', fontFamily:'Nunito,sans-serif', fontWeight:700, fontSize:13, transition:'all 0.15s'}}>
+              <button key={t} onClick={()=>setTab(t)} style={{flex:1,background:tab===t?'#E8192C':'transparent',border:'none',color:tab===t?'#fff':'rgba(255,255,255,0.4)',borderRadius:7,padding:'9px 4px',cursor:'pointer',fontFamily:'Nunito,sans-serif',fontWeight:700,fontSize:12,transition:'all 0.15s'}}>
                 {{create:'방 만들기',join:'코드 입장',browse:'방 목록'}[t]}
               </button>
             ))}
           </div>
-          {tab==='create'&&<div style={{display:'flex', flexDirection:'column', gap:10}}>
-            <p style={{color:'rgba(255,255,255,0.4)', fontSize:13, textAlign:'center'}}>방을 만들고 친구를 초대하세요 (3~5명)</p>
-            <button style={lBtn('#E8192C')} disabled={loading} onClick={()=>go(()=>createRoom(name.trim()))}>{loading?'생성 중...':'방 만들기'}</button>
-          </div>}
-          {tab==='join'&&<div style={{display:'flex', flexDirection:'column', gap:10}}>
-            <label style={lobbyLbl}>방 코드</label>
-            <input value={code} onChange={e=>setCode(e.target.value)} placeholder="방 코드 입력" style={lobbyInput}/>
+          {tab==='create'&&<button style={lBtn('#E8192C')} disabled={loading} onClick={()=>go(()=>createRoom(name.trim()))}>{loading?'생성 중...':'방 만들기'}</button>}
+          {tab==='join'&&<div style={{display:'flex',flexDirection:'column',gap:9}}>
+            <input value={code} onChange={e=>setCode(e.target.value)} placeholder="방 코드" style={lobbyInput}/>
             <button style={lBtn('#E8192C')} disabled={loading} onClick={()=>go(()=>joinRoom(code.trim(),name.trim()))}>{loading?'입장 중...':'입장'}</button>
           </div>}
-          {tab==='browse'&&<div style={{display:'flex', flexDirection:'column', gap:7}}>
-            {rooms.length===0?<p style={{color:'rgba(255,255,255,0.3)', fontSize:13, textAlign:'center', padding:16}}>대기 중인 방 없음</p>
+          {tab==='browse'&&<div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {rooms.length===0?<p style={{color:'rgba(255,255,255,0.3)',fontSize:13,textAlign:'center',padding:14}}>대기 중인 방 없음</p>
             :rooms.map(r=>{const pc=Object.keys(r.players||{}).length; return(
-              <div key={r.id} style={{display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,0.07)', borderRadius:10, padding:'10px 14px'}}>
-                <div><div style={{fontWeight:700, fontSize:14, color:'#fff'}}>{Object.values(r.players||{})[0]?.name}의 방</div><div style={{fontSize:12, color:'rgba(255,255,255,0.4)'}}>{pc}/5명</div></div>
-                <button style={lBtn('#E8192C','7px 14px',12)} disabled={loading} onClick={()=>go(()=>joinRoom(r.id,name.trim()))}>입장</button>
-              </div>); })}
+              <div key={r.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'9px 13px'}}>
+                <div><div style={{fontWeight:700,fontSize:13,color:'#fff'}}>{Object.values(r.players||{})[0]?.name}의 방</div><div style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>{pc}/5명</div></div>
+                <button style={lBtn('#E8192C','6px 13px',12)} disabled={loading} onClick={()=>go(()=>joinRoom(r.id,name.trim()))}>입장</button>
+              </div>);})}
           </div>}
-          {err&&<p style={{color:'#FF8080', fontSize:13, textAlign:'center', marginTop:10}}>{err}</p>}
+          {err&&<p style={{color:'#FF8080',fontSize:13,textAlign:'center',marginTop:9}}>{err}</p>}
         </div>
         {isAdmin&&(
-          <div style={{marginTop:14, background:'rgba(0,0,0,0.5)', borderRadius:16, padding:20, backdropFilter:'blur(8px)', border:'1.5px solid rgba(255,224,102,0.35)'}}>
-            <p style={{color:'#FFE066', fontSize:13, fontWeight:800, marginBottom:14}}>👑 관리자 — 방 관리 ({allRooms.length}개)</p>
-            {allRooms.length===0?<p style={{color:'rgba(255,255,255,0.3)', fontSize:13, textAlign:'center'}}>방 없음</p>
-            :allRooms.map(r=>{const sl=statusLabel(r); const host=Object.values(r.players||{})[0]?.name||'?'; const pc=Object.keys(r.players||{}).length; return(
-              <div key={r.id} style={{display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,0.05)', borderRadius:10, padding:'10px 14px', marginBottom:7, border:'1px solid rgba(255,255,255,0.08)'}}>
-                <div style={{flex:1, minWidth:0}}>
-                  <div style={{display:'flex', alignItems:'center', gap:7, marginBottom:3}}>
-                    <span style={{fontWeight:700, fontSize:13, color:'#eee'}}>{host}의 방</span>
-                    <span style={{background:sl.color, color:'#fff', fontSize:10, padding:'1px 7px', borderRadius:4, fontWeight:700}}>{sl.label}</span>
+          <div style={{marginTop:13,background:'rgba(0,0,0,0.5)',borderRadius:16,padding:18,backdropFilter:'blur(8px)',border:'1.5px solid rgba(255,224,102,0.35)'}}>
+            <p style={{color:'#FFE066',fontSize:12,fontWeight:800,marginBottom:12}}>👑 관리자 ({allRooms.length}개)</p>
+            {allRooms.map(r=>{const s=sl(r);const host=Object.values(r.players||{})[0]?.name||'?';const pc=Object.keys(r.players||{}).length;return(
+              <div key={r.id} style={{display:'flex',alignItems:'center',gap:9,background:'rgba(255,255,255,0.05)',borderRadius:10,padding:'9px 13px',marginBottom:6,border:'1px solid rgba(255,255,255,0.08)'}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+                    <span style={{fontWeight:700,fontSize:12,color:'#eee'}}>{host}의 방</span>
+                    <span style={{background:s.color,color:'#fff',fontSize:10,padding:'1px 6px',borderRadius:4,fontWeight:700}}>{s.label}</span>
                   </div>
-                  <div style={{fontSize:11, color:'rgba(255,255,255,0.35)', fontFamily:'monospace'}}>{r.id?.slice(-8)} · {pc}명</div>
+                  <div style={{fontSize:10,color:'rgba(255,255,255,0.3)',fontFamily:'monospace'}}>{r.id?.slice(-8)} · {pc}명</div>
                 </div>
-                <button onClick={()=>handleDelete(r.id)} disabled={deleting===r.id}
-                  style={{background:deleting===r.id?'#555':'#E8192C', border:'none', borderRadius:8, color:'#fff', fontFamily:'Nunito,sans-serif', fontSize:12, fontWeight:700, padding:'6px 12px', cursor:deleting===r.id?'not-allowed':'pointer', flexShrink:0}}>
+                <button onClick={()=>{setDeleting(r.id);deleteRoom(r.id).finally(()=>setDeleting(null));}}
+                  disabled={deleting===r.id}
+                  style={{background:deleting===r.id?'#555':'#E8192C',border:'none',borderRadius:7,color:'#fff',fontFamily:'Nunito,sans-serif',fontSize:11,fontWeight:700,padding:'5px 11px',cursor:deleting===r.id?'not-allowed':'pointer',flexShrink:0}}>
                   {deleting===r.id?'삭제 중...':'🗑 삭제'}
                 </button>
-              </div>); })}
+              </div>);})}
           </div>
         )}
-        <div style={{marginTop:14, background:'rgba(0,0,0,0.3)', borderRadius:16, padding:18, backdropFilter:'blur(8px)'}}>
-          <p style={{color:'rgba(255,255,255,0.35)', fontSize:11, marginBottom:12, textTransform:'uppercase', letterSpacing:'0.1em'}}>게임 방법</p>
-          {[['🃏','A. 플레이','마당보다 강한 조합 내려놓기'],['🔍','B. 스카우트','마당 끝 카드 → 손패 원하는 위치에'],['⚡','C. 더블 액션','스카우트 후 바로 플레이 (1회)'],['↕','뒤집기','라운드 시작 전 손패 방향 선택']].map(([ic,nm,ds])=>(
-            <div key={nm} style={{display:'flex', gap:10, marginBottom:10, alignItems:'flex-start'}}>
-              <span style={{fontSize:18, flexShrink:0}}>{ic}</span>
-              <div><div style={{fontWeight:700, color:'#eee', fontSize:13}}>{nm}</div><div style={{color:'rgba(255,255,255,0.45)', fontSize:12}}>{ds}</div></div>
+        <div style={{marginTop:13,background:'rgba(0,0,0,0.3)',borderRadius:14,padding:16,backdropFilter:'blur(8px)'}}>
+          <p style={{color:'rgba(255,255,255,0.35)',fontSize:10,marginBottom:10,textTransform:'uppercase',letterSpacing:'0.1em'}}>게임 방법</p>
+          {[['🃏','A. 플레이','마당보다 강한 조합'],['🔍','B. 스카우트','끝 카드 → 손패'],['⚡','C. 더블','스카우트 후 플레이'],['↕','뒤집기','라운드 시작 전 선택']].map(([ic,nm,ds])=>(
+            <div key={nm} style={{display:'flex',gap:9,marginBottom:9,alignItems:'flex-start'}}>
+              <span style={{fontSize:16,flexShrink:0}}>{ic}</span>
+              <div><div style={{fontWeight:700,color:'#eee',fontSize:12}}>{nm}</div><div style={{color:'rgba(255,255,255,0.4)',fontSize:11}}>{ds}</div></div>
             </div>
           ))}
         </div>
@@ -457,726 +403,616 @@ function Lobby({ onEnter }) {
 }
 
 // ─── 대기실 ───────────────────────────────────────────────────
-function WaitingRoom({ roomId, playerId, room, onLeave }) {
-  const players  = Object.values(room.players||{});
-  const me       = room.players?.[playerId];
-  const isHost   = room.hostId===playerId;
-  const allReady = players.length>=3 && players.every(p=>p.ready||p.id===room.hostId);
-
-  const handleLeave = async () => {
-    await leaveRoom(roomId, playerId);
-    onLeave();
-  };
-
+function WaitingRoom({roomId, playerId, room, onLeave}) {
+  const players=Object.values(room.players||{});
+  const me=room.players?.[playerId], isHost=room.hostId===playerId;
+  const allReady=players.length>=3&&players.every(p=>p.ready||p.id===room.hostId);
   return (
-    <div style={{minHeight:'100vh', background:'radial-gradient(ellipse at 30% 20%, #c17a2a 0%, #8b4a0a 40%, #5a2d00 100%)', display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
-      <div style={{width:'100%', maxWidth:440}}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24}}>
-          <button style={{background:'none', border:'none', color:'rgba(255,255,255,0.5)', cursor:'pointer', fontSize:14, fontFamily:'Nunito,sans-serif'}} onClick={handleLeave}>← 나가기</button>
-          <div style={{fontSize:13, color:'rgba(255,255,255,0.5)'}}>방 코드: <strong style={{fontFamily:'monospace', color:'#FFE066', fontSize:12}}>{roomId}</strong>
-            <button style={{background:'rgba(255,255,255,0.1)', border:'none', borderRadius:6, color:'#fff', fontSize:11, padding:'3px 9px', marginLeft:7, cursor:'pointer', fontFamily:'Nunito,sans-serif'}} onClick={()=>navigator.clipboard.writeText(roomId)}>복사</button>
+    <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at 30% 20%, #c17a2a 0%, #8b4a0a 40%, #5a2d00 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{width:'100%',maxWidth:420}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <button style={{background:'none',border:'none',color:'rgba(255,255,255,0.5)',cursor:'pointer',fontSize:13,fontFamily:'Nunito,sans-serif'}} onClick={async()=>{await leaveRoom(roomId,playerId);onLeave();}}>← 나가기</button>
+          <div style={{fontSize:12,color:'rgba(255,255,255,0.5)'}}>방 코드: <strong style={{fontFamily:'monospace',color:'#FFE066'}}>{roomId}</strong>
+            <button style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:5,color:'#fff',fontSize:10,padding:'2px 8px',marginLeft:6,cursor:'pointer',fontFamily:'Nunito,sans-serif'}} onClick={()=>navigator.clipboard.writeText(roomId)}>복사</button>
           </div>
         </div>
-        <div style={{background:'rgba(0,0,0,0.45)', borderRadius:20, padding:26, backdropFilter:'blur(12px)'}}>
-          <h2 style={{textAlign:'center', marginBottom:6, fontSize:24, color:'#fff'}}>대기 중...</h2>
-          <p style={{color:'rgba(255,255,255,0.4)', fontSize:14, textAlign:'center', marginBottom:22}}>3~5명이 모이면 시작 가능</p>
-          <div style={{display:'flex', flexDirection:'column', gap:9, marginBottom:22}}>
+        <div style={{background:'rgba(0,0,0,0.45)',borderRadius:18,padding:24,backdropFilter:'blur(12px)'}}>
+          <h2 style={{textAlign:'center',marginBottom:18,fontSize:22,color:'#fff'}}>대기 중...</h2>
+          <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:20}}>
             {players.map((p,i)=>(
-              <div key={p.id} style={{display:'flex', alignItems:'center', gap:13, background:'rgba(255,255,255,0.07)', borderRadius:12, padding:'12px 16px', border:`2px solid ${p.ready||p.id===room.hostId?'#00DC96':p.id===playerId?PC[0]:'rgba(255,255,255,0.1)'}`}}>
-                <div style={{width:44, height:44, borderRadius:'50%', background:PC[i%PC.length], display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, border:'2px solid rgba(255,255,255,0.2)', flexShrink:0}}>{getAvatar(p.id)}</div>
+              <div key={p.id} style={{display:'flex',alignItems:'center',gap:12,background:'rgba(255,255,255,0.07)',borderRadius:11,padding:'11px 14px',border:`2px solid ${p.ready||p.id===room.hostId?'#00DC96':p.id===playerId?PC[0]:'rgba(255,255,255,0.1)'}`}}>
+                <div style={{width:40,height:40,borderRadius:'50%',background:PC[i%PC.length],display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,border:'2px solid rgba(255,255,255,0.2)',flexShrink:0}}>{getAvatar(p.id)}</div>
                 <div style={{flex:1}}>
-                  <div style={{display:'flex', gap:7, alignItems:'center', fontWeight:700, color:'#fff'}}>
+                  <div style={{display:'flex',gap:6,alignItems:'center',fontWeight:700,color:'#fff',fontSize:14}}>
                     {p.name}
-                    {p.id===room.hostId&&<span style={{background:'#FFE066', color:'#1a1a1a', fontSize:10, padding:'2px 7px', borderRadius:4, fontWeight:800}}>방장</span>}
-                    {p.id===playerId&&<span style={{background:PC[0], color:'#fff', fontSize:10, padding:'2px 7px', borderRadius:4, fontWeight:800}}>나</span>}
+                    {p.id===room.hostId&&<span style={{background:'#FFE066',color:'#1a1a1a',fontSize:10,padding:'1px 6px',borderRadius:3,fontWeight:800}}>방장</span>}
+                    {p.id===playerId&&<span style={{background:PC[0],color:'#fff',fontSize:10,padding:'1px 6px',borderRadius:3,fontWeight:800}}>나</span>}
                   </div>
-                  <div style={{fontSize:12, color:p.ready||p.id===room.hostId?'#00DC96':'rgba(255,255,255,0.35)', marginTop:2}}>{p.id===room.hostId?'방장':p.ready?'✓ 준비 완료':'대기 중...'}</div>
+                  <div style={{fontSize:11,color:p.ready||p.id===room.hostId?'#00DC96':'rgba(255,255,255,0.35)',marginTop:2}}>{p.id===room.hostId?'방장':p.ready?'✓ 준비':'대기 중...'}</div>
                 </div>
               </div>
             ))}
           </div>
           {isHost
-            ?<button style={lBtn(allReady?'#E8192C':'#444','16px',16)} onClick={async()=>await saveGameState(roomId,initializeGame(players.map(p=>p.id)),'playing')} disabled={!allReady}>
-              {players.length<3?`최소 3명 필요 (${players.length}/3)`:!allReady?'모든 플레이어 준비 대기 중':'게임 시작! 🎮'}
+            ?<button style={lBtn(allReady?'#E8192C':'#444','15px',15)} disabled={!allReady} onClick={async()=>await saveGameState(roomId,initializeGame(players.map(p=>p.id)),'playing')}>
+              {players.length<3?`최소 3명 필요 (${players.length}/3)`:!allReady?'준비 대기 중':'게임 시작! 🎮'}
              </button>
-            :<button style={lBtn(me?.ready?'#555':'#E8192C','16px',16)} onClick={()=>toggleReady(roomId,playerId,!me?.ready)}>{me?.ready?'준비 취소':'준비 완료!'}</button>}
+            :<button style={lBtn(me?.ready?'#555':'#E8192C','15px',15)} onClick={()=>toggleReady(roomId,playerId,!me?.ready)}>{me?.ready?'준비 취소':'준비 완료!'}</button>}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── 라운드 결과 화면 (모든 플레이어용) ──────────────────────
-function RoundEndScreen({ gs, roundEnd, players, getName, playerId, solo, onConfirm }) {
-  const sorted = [...gs.players].sort((a,b)=>(roundEnd.tot[b]||0)-(roundEnd.tot[a]||0));
-  const [confirmed, setConfirmed] = useState(false);
-
-  const handleConfirm = () => {
-    setConfirmed(true);
-    onConfirm();
-  };
-
-  return (
-    <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.93)', overflowY:'auto', zIndex:200, backdropFilter:'blur(16px)'}}>
-      <div style={{maxWidth:520, margin:'0 auto', padding:'28px 16px 40px'}}>
-        <div style={{textAlign:'center', marginBottom:24}}>
-          <div style={{fontSize:46, marginBottom:6}}>🏆</div>
-          <h2 style={{color:'#fff', fontSize:26, marginBottom:4}}>라운드 {gs.round} 종료!</h2>
-          <p style={{color:'#FFE066', fontWeight:800, fontSize:18}}>{getName(roundEnd.wid)} 승리!</p>
-        </div>
-
-        {gs.players.map((pid,pi)=>{
-          const isWinner = pid===roundEnd.wid;
-          const pColor   = PC[pi%PC.length];
-          const hand     = gs.hands?.[pid]||[];
-          const tokens   = gs.scores?.[pid]||0;
-          const cap      = gs.capturedCards?.[pid]||0;
-          const penalty  = hand.length;
-          const score    = roundEnd.sc[pid]||0;
-          const ownedField = gs.field?.ownerId===pid ? gs.field.cards : [];
-          return (
-            <div key={pid} style={{background:isWinner?'rgba(0,220,150,0.1)':'rgba(255,255,255,0.05)', border:`2px solid ${isWinner?'#00DC96':'rgba(255,255,255,0.1)'}`, borderRadius:16, padding:'16px 18px', marginBottom:12}}>
-              <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:12}}>
-                <div style={{width:44, height:44, borderRadius:'50%', background:pColor, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0, border:`3px solid ${isWinner?'#00DC96':'rgba(255,255,255,0.2)'}`}}>{getAvatar(pid)}</div>
-                <div style={{flex:1}}>
-                  <span style={{fontWeight:800, fontSize:16, color:isWinner?'#00DC96':'#eee'}}>{getName(pid)}</span>
-                  {isWinner&&<span style={{marginLeft:8, background:'#00DC96', color:'#0a2a1a', fontSize:11, padding:'2px 8px', borderRadius:4, fontWeight:800}}>🏆 승자</span>}
-                  {pid===playerId&&<span style={{marginLeft:6, background:'rgba(255,255,255,0.15)', color:'#fff', fontSize:11, padding:'2px 8px', borderRadius:4}}>나</span>}
-                </div>
-                <div style={{fontSize:22, fontWeight:900, color:score>=0?'#00DC96':'#FF6B6B'}}>{score>=0?'+':''}{score}</div>
-              </div>
-              <div style={{display:'flex', gap:8, marginBottom:12, flexWrap:'wrap'}}>
-                {[['🏅 토큰',`+${tokens}`,'#FFE066'],['📥 먹은 패',`+${cap}장`,'#00DC96'],!isWinner&&['✗ 손패 감점',`-${penalty}장`,'#FF6B6B']].filter(Boolean).map(([lb,val,col])=>(
-                  <div key={lb} style={{background:'rgba(255,255,255,0.07)', borderRadius:8, padding:'4px 10px', display:'flex', flexDirection:'column', alignItems:'center', minWidth:60}}>
-                    <span style={{fontSize:10, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'0.05em'}}>{lb}</span>
-                    <span style={{fontSize:14, fontWeight:800, color:col}}>{val}</span>
-                  </div>
-                ))}
-              </div>
-              {/* 손패 오픈 */}
-              {hand.length>0?(
-                <div>
-                  <p style={{fontSize:11, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:7}}>
-                    손패 ({hand.length}장){!isWinner&&<span style={{color:'#FF6B6B', marginLeft:4}}>← 감점</span>}
-                  </p>
-                  <div style={{display:'flex', gap:3, flexWrap:'wrap'}}>
-                    {hand.map((c,i)=><CardFace key={i} top={getTopValue(c)} bot={getBottomValue(c)} w={38} h={56} fs={13} border="2px solid rgba(255,255,255,0.2)" shadow="0 2px 8px rgba(0,0,0,0.5)" style={{opacity:isWinner?1:0.55}}/>)}
-                  </div>
-                </div>
-              ):<p style={{fontSize:12, color:'#00DC96'}}>✓ 손패 소진!</p>}
-              {ownedField.length>0&&(
-                <div style={{marginTop:10}}>
-                  <p style={{fontSize:11, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:7}}>마당패 보유</p>
-                  <div style={{display:'flex', gap:3, flexWrap:'wrap'}}>
-                    {ownedField.map((fc,i)=>{const t=fc.flipped?fc.bottom:fc.top, b=fc.flipped?fc.top:fc.bottom; return <CardFace key={i} top={t} bot={b} w={38} h={56} fs={13} border="2px solid rgba(255,255,255,0.2)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>;  })}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* 누적 순위 */}
-        <div style={{background:'rgba(255,255,255,0.04)', borderRadius:14, padding:'14px 18px', marginBottom:20, border:'1px solid rgba(255,255,255,0.08)'}}>
-          <p style={{color:'rgba(255,255,255,0.4)', fontSize:11, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:12}}>누적 점수 순위</p>
-          {sorted.map((pid,rank)=>{
-            const pi=gs.players.indexOf(pid);
-            return(
-              <div key={pid} style={{display:'flex', alignItems:'center', gap:10, marginBottom:8}}>
-                <span style={{fontSize:14, fontWeight:900, color:rank===0?'#FFE066':'rgba(255,255,255,0.3)', width:20, textAlign:'center'}}>{rank+1}</span>
-                <div style={{width:30, height:30, borderRadius:'50%', background:PC[pi%PC.length], display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, flexShrink:0}}>{getAvatar(pid)}</div>
-                <span style={{flex:1, fontWeight:700, fontSize:14, color:rank===0?'#FFE066':'#eee'}}>{getName(pid)}</span>
-                <span style={{fontWeight:900, fontSize:18, color:rank===0?'#FFE066':'#eee'}}>{roundEnd.tot[pid]||0}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 확인 버튼 — solo면 바로 다음 라운드, 멀티면 모두 확인 대기 */}
-        {!confirmed
-          ? <button style={{...lBtn('#E8192C','16px',16), width:'100%'}} onClick={handleConfirm}>
-              ✓ 확인 (다음 라운드 준비)
-            </button>
-          : <div style={{textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:14, padding:16}}>
-              다른 플레이어 확인 대기 중...
-            </div>
-        }
       </div>
     </div>
   );
 }
 
 // ─── 게임 보드 ────────────────────────────────────────────────
-function GameBoard({ roomId, playerId, room, gameState:initGs, solo, soloPlayers, onLeave }) {
-  const [gs,setGs]               = useState(initGs);
-  const [mode,setMode]           = useState('flip_choice');
-  const [flipConfirmed,setFlipConfirmed] = useState(false); // 뒤집기 선택 후 확인 대기
-  const [flipChoice,setFlipChoice]       = useState(null);  // true=뒤집기, false=그대로
-  const [doublePhase,setDoublePhase]     = useState(null);
-  const [selected,setSelected]   = useState([]);
-  const [msg,setMsg]             = useState('');
-  const [roundEnd,setRoundEnd]   = useState(null);
-  const [aiThinking,setAiThinking] = useState(false);
-  const [scoutIdx,setScoutIdx]     = useState(null);
-  const [insertMode,setInsertMode] = useState(false);
-  const [aiAction,setAiAction]     = useState(null);
-  const [showHelp,setShowHelp]     = useState(false);
-  const [scoutAnim,setScoutAnim]   = useState(null); // {card, toLabel}
-  const [liveEmojis,setLiveEmojis] = useState([]);
-  const [roundReady,setRoundReady] = useState({});   // {pid: true}
-  const handContainerRef = useRef(null);
-  const [handW,setHandW] = useState(360);
-  const timerRef = useRef(null);
+function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers, onLeave}) {
+  const [gs,setGs]         = useState(initGs);
+  const [mode,setMode]     = useState('flip_choice');
+  const [flipChoice,setFC] = useState(null); // null | false | true
+  const [doublePhase,setDP]= useState(null); // null | 'scouted'
+  const [selected,setSel]  = useState([]);
+  const [msg,setMsg]       = useState('');
+  const [roundEnd,setRE]   = useState(null);
+  const [aiThinking,setAIT]= useState(false);
+  const [scoutIdx,setSIdx] = useState(null); // {fi, shouldFlip, isDouble}
+  const [insertMode,setIM] = useState(false);
+  const [actionNotice,setAN]= useState(null); // {type,name,cards}
+  const [showHelp,setSH]   = useState(false);
+  const [scoutAnim,setSA]  = useState(null); // {card, toLabel}
+  const [liveEmojis,setLE] = useState({}); // {pid: icon}
+  const [myEmoji,setME]    = useState(null);
+  const [roundReady,setRR] = useState({});
+  const [turnSec,setTS]    = useState(TURN_TIMEOUT);
+  const timerRef    = useRef(null);
+  const turnTimRef  = useRef(null);
+  const noticeTimer = useRef(null);
 
   const players  = solo ? soloPlayers : Object.values(room?.players||{});
   const myHand   = gs.hands?.[playerId]||[];
   const curId    = gs.players[gs.currentPlayerIndex];
   const isMyTurn = curId===playerId;
-  const isAI     = id => id?.startsWith('ai_');
-  const getName  = pid => players.find(p=>p.id===pid)?.name||pid;
-  const showMsg  = (m,d=2800) => { setMsg(m); setTimeout(()=>setMsg(''),d); };
+  const isAI     = id=>id?.startsWith('ai_');
+  const getName  = pid=>players.find(p=>p.id===pid)?.name||pid;
+  const showMsg  = (m,d=2400)=>{setMsg(m);setTimeout(()=>setMsg(''),d);};
   const myIdx    = players.findIndex(p=>p.id===playerId);
   const myColor  = PC[myIdx%PC.length]||PC[0];
-  const canScout = gs.field && gs.field.ownerId !== playerId;
-  const canDouble= canScout && !gs.doubleActionUsed?.[playerId];
-
-  // 손패 컨테이너 너비 감지
-  useEffect(()=>{
-    if(!handContainerRef.current) return;
-    const ro = new ResizeObserver(([e])=>setHandW(e.contentRect.width));
-    ro.observe(handContainerRef.current);
-    return () => ro.disconnect();
-  },[]);
+  const canScout = gs.field&&gs.field.ownerId!==playerId;
+  const canDouble= canScout&&!gs.doubleActionUsed?.[playerId];
 
   // Firebase 구독
   useEffect(()=>{
     if(solo) return;
-    return subscribeToRoom(roomId, d => {
+    return subscribeToRoom(roomId,d=>{
       if(!d) return;
       if(d.gameState) setGs(d.gameState);
-      if(d.roundReady) setRoundReady(d.roundReady);
+      if(d.roundReady) setRR(d.roundReady);
       // 감정표현 구독
-      const emojiList = d.emojis ? Object.entries(d.emojis).map(([k,v])=>({id:k,...v})) : [];
-      setLiveEmojis(emojiList);
+      if(d.emojis){
+        const map={};
+        Object.values(d.emojis).forEach(e=>{ map[e.playerId]=e.emoji; });
+        setLE(map);
+      } else setLE({});
     });
   },[roomId,solo]);
 
-  // 라운드 ready 체크 (멀티)
+  // 멀티 라운드 ready 체크
   useEffect(()=>{
     if(solo||!roundEnd) return;
-    const allReady = gs.players.every(pid=>roundReady[pid]);
-    if(allReady && Object.keys(roundReady).length > 0) {
-      handleNextRound();
-    }
-  },[roundReady, roundEnd]);
+    if(gs.players.length>0&&gs.players.every(pid=>roundReady[pid])) handleNextRound();
+  },[roundReady,roundEnd]);
 
-  // AI 자동
+  // 45초 턴 타이머 (내 차례에만)
+  useEffect(()=>{
+    clearInterval(turnTimRef.current);
+    if(!gs||roundEnd||mode==='flip_choice'||isAI(curId)||curId!==playerId) { setTS(TURN_TIMEOUT); return; }
+    setTS(TURN_TIMEOUT);
+    turnTimRef.current=setInterval(()=>{
+      setTS(prev=>{
+        if(prev<=1){
+          clearInterval(turnTimRef.current);
+          autoScoutOrPlay();
+          return TURN_TIMEOUT;
+        }
+        return prev-1;
+      });
+    },1000);
+    return()=>clearInterval(turnTimRef.current);
+  },[gs?.currentPlayerIndex, roundEnd, mode]);
+
+  const autoScoutOrPlay=()=>{
+    // 마당패 있으면 마지막 카드 스카우트, 없으면 첫 카드 플레이
+    const currGs=gs; // closure
+    if(currGs.field&&currGs.field.cards.length>0){
+      const fi=currGs.field.cards.length-1;
+      const fc=currGs.field.cards[fi];
+      const newCard={id:fc.cardId??fc.id,top:fc.top,bottom:fc.bottom,flipped:fc.flipped};
+      const hand=[...(currGs.hands[playerId]||[]),newCard];
+      const newFieldCards=currGs.field.cards.slice(0,-1);
+      let tokens=currGs.tokens; const scores={...currGs.scores};
+      if(tokens>0){tokens--;scores[currGs.field.ownerId]=(scores[currGs.field.ownerId]||0)+1;}
+      const next=(currGs.currentPlayerIndex+1)%currGs.players.length;
+      const scoutedList=[...(currGs.scoutedSinceLastPlay||[])];
+      if(!scoutedList.includes(playerId)) scoutedList.push(playerId);
+      const ngs={...currGs,hands:{...currGs.hands,[playerId]:hand},
+        field:newFieldCards.length>0?{...currGs.field,cards:newFieldCards}:null,
+        scores,tokens,currentPlayerIndex:next,scoutedSinceLastPlay:scoutedList};
+      const end=checkRoundEnd(ngs);
+      if(end.ended){finishRound(ngs,end.winnerId);return;}
+      setGs(ngs); if(!solo)saveGameState(roomId,ngs);
+      setMode('play'); showMsg('⏰ 시간 초과 — 자동 스카우트!');
+    } else {
+      const r=applyPlay(currGs,playerId,[0]);
+      if(!r.error){const end=checkRoundEnd(r.state);if(end.ended){finishRound(r.state,end.winnerId);return;}setGs(r.state);if(!solo)saveGameState(roomId,r.state);showMsg('⏰ 자동 플레이!');}
+    }
+  };
+
+  // AI 자동 실행
   useEffect(()=>{
     if(!gs||roundEnd) return;
-    const cur = gs.players[gs.currentPlayerIndex];
+    const cur=gs.players[gs.currentPlayerIndex];
     if(!isAI(cur)) return;
-    setAiThinking(true);
-    timerRef.current = setTimeout(()=>{
-      const action = getAIAction(gs, cur);
-      if(!action){ setAiThinking(false); return; }
+    setAIT(true);
+    timerRef.current=setTimeout(()=>{
+      const action=getAIAction(gs,cur);
+      if(!action){setAIT(false);return;}
       let result;
-      if(action.type==='play') result = applyPlay(gs, cur, action.indices);
-      else result = applyScout(gs, cur, action.fieldIndex, action.insertIndex);
-      if(result.error){ setAiThinking(false); return; }
-      setAiAction(action.type==='play'
-        ?{type:'play', name:getName(cur), cards:action.indices.map(i=>gs.hands[cur][i])}
-        :{type:'scout', name:getName(cur), val:gs.field?.cards[action.fieldIndex]?.value});
-      const ngs = result.state;
+      if(action.type==='play') result=applyPlay(gs,cur,action.indices);
+      else result=applyScout(gs,cur,action.fieldIndex,action.insertIndex);
+      if(result.error){setAIT(false);return;}
+      // 행동 알림 — 스카우트도 카드 이미지 포함
+      const noticeCards = action.type==='play'
+        ? action.indices.map(i=>gs.hands[cur][i])
+        : [gs.field?.cards[action.fieldIndex]].filter(Boolean).map(fc=>({
+            top:fc.flipped?fc.bottom:fc.top, bottom:fc.flipped?fc.top:fc.bottom, flipped:false, id:fc.cardId
+          }));
+      const notice={type:action.type, name:getName(cur), cards:noticeCards};
+      setAN(notice);
+      clearTimeout(noticeTimer.current);
+      noticeTimer.current=setTimeout(()=>setAN(null), AI_SHOW);
+      const ngs=result.state;
       setTimeout(()=>{
-        setAiAction(null);
-        const end = checkRoundEnd(ngs);
-        if(end.ended){ finishRound(ngs, end.winnerId); setAiThinking(false); return; }
-        setGs(ngs);
-        if(!solo) saveGameState(roomId, ngs);
-        setAiThinking(false);
-      }, AI_SHOW);
-    }, AI_THINK);
-    return () => clearTimeout(timerRef.current);
-  },[gs?.currentPlayerIndex, roundEnd]);
+        const end=checkRoundEnd(ngs);
+        if(end.ended){finishRound(ngs,end.winnerId);setAIT(false);return;}
+        setGs(ngs); if(!solo)saveGameState(roomId,ngs);
+        setAIT(false);
+      },AI_SHOW);
+    },AI_THINK);
+    return()=>clearTimeout(timerRef.current);
+  },[gs?.currentPlayerIndex,roundEnd]);
 
-  const persist = async ngs => { setGs(ngs); if(!solo) await saveGameState(roomId,ngs); };
-  const finishRound = (fgs, wid) => {
-    const sc  = calculateRoundScore(fgs, wid);
-    const tot = {...fgs.totalScores};
-    fgs.players.forEach(pid=>{ tot[pid]=(tot[pid]||0)+(sc[pid]||0); });
-    setRoundEnd({sc, wid, tot});
+  const persist=async ngs=>{setGs(ngs);if(!solo)await saveGameState(roomId,ngs);};
+  const finishRound=(fgs,wid)=>{
+    const sc=calculateRoundScore(fgs,wid), tot={...fgs.totalScores};
+    fgs.players.forEach(pid=>{tot[pid]=(tot[pid]||0)+(sc[pid]||0);});
+    setRE({sc,wid,tot});
   };
 
-  // 뒤집기 선택 → 확인 단계
-  const handleFlipSelect = choice => {
-    setFlipChoice(choice);
-    setFlipConfirmed(false); // 선택만, 아직 확인 안함
-  };
-  const handleFlipConfirm = async () => {
+  const handleFlipConfirm=async()=>{
     if(flipChoice===null) return;
     if(flipChoice){
-      const ngs = {...gs, hands:{...gs.hands,[playerId]:flipEntireHand(myHand)}, handFlipped:{...gs.handFlipped,[playerId]:true}};
-      await persist(ngs); showMsg('↕ 손패를 뒤집었습니다!');
+      const ngs={...gs,hands:{...gs.hands,[playerId]:flipEntireHand(myHand)},handFlipped:{...gs.handFlipped,[playerId]:true}};
+      await persist(ngs); showMsg('↕ 손패 뒤집기!');
     }
-    setFlipChoice(null);
-    setFlipConfirmed(false);
-    setMode('play');
+    setFC(null); setMode('play');
   };
 
-  const handlePlay = async () => {
+  const handlePlay=async()=>{
     if(!isMyTurn||selected.length===0) return;
-    const r = applyPlay(gs, playerId, selected);
+    const r=applyPlay(gs,playerId,selected);
     if(r.error) return showMsg('❌ '+r.error);
-    setSelected([]);
-    if(doublePhase==='scouted'){
-      r.state.doubleActionUsed = {...r.state.doubleActionUsed,[playerId]:true};
-      setDoublePhase(null);
-    }
-    const end = checkRoundEnd(r.state);
-    if(end.ended) return finishRound(r.state, end.winnerId);
-    await persist(r.state);
-    setMode('play');
+    setSel([]);
+    if(doublePhase==='scouted'){r.state.doubleActionUsed={...r.state.doubleActionUsed,[playerId]:true};setDP(null);}
+    const end=checkRoundEnd(r.state);
+    if(end.ended) return finishRound(r.state,end.winnerId);
+    await persist(r.state); setMode('play');
   };
 
-  const handleSelectField = (fi, shouldFlip) => {
+  const handleSelectField=(fi,shouldFlip)=>{
     if(!isMyTurn||(mode!=='scout'&&mode!=='double')||insertMode) return;
-    setScoutIdx({fi, shouldFlip, isDouble:mode==='double'});
-    setInsertMode(true);
+    setSIdx({fi,shouldFlip,isDouble:mode==='double'}); setIM(true);
   };
 
-  const handleInsert = async insertIdx => {
+  const handleInsert=async insertIdx=>{
     if(scoutIdx===null) return;
-    const {fi, shouldFlip, isDouble} = scoutIdx;
-    const fc = gs.field?.cards[fi];
-    if(!fc){ showMsg('❌ 카드가 없습니다.'); return; }
-
-    const r = applyScout(gs, playerId, fi, insertIdx, shouldFlip);
-    if(r.error){ showMsg('❌ '+r.error); return; }
-    setScoutIdx(null); setInsertMode(false);
-
-    // 애니메이션용 카드 — shouldFlip 반영
-    const animTop = shouldFlip ? (fc.flipped ? fc.top : fc.bottom) : (fc.flipped ? fc.bottom : fc.top);
-    const animBot = shouldFlip ? (fc.flipped ? fc.bottom : fc.top) : (fc.flipped ? fc.top : fc.bottom);
-    const animCard = {top:animTop, bottom:animBot, flipped:false};
-    setScoutAnim({card:animCard, toLabel:getName(playerId)});
-
+    const {fi,shouldFlip,isDouble}=scoutIdx;
+    const fc=gs.field?.cards[fi];
+    if(!fc){showMsg('❌ 카드 없음');return;}
+    const r=applyScout(gs,playerId,fi,insertIdx,shouldFlip);
+    if(r.error){showMsg('❌ '+r.error);return;}
+    setSIdx(null);setIM(false);
+    // 스카우트 애니메이션용 카드
+    const animTop=shouldFlip?(fc.flipped?fc.top:fc.bottom):(fc.flipped?fc.bottom:fc.top);
+    const animBot=shouldFlip?(fc.flipped?fc.bottom:fc.top):(fc.flipped?fc.top:fc.bottom);
+    setSA({card:{top:animTop,bottom:animBot,flipped:false},toLabel:getName(playerId)});
     if(isDouble){
-      const myIdx2 = r.state.players.indexOf(playerId);
-      const stateForDouble = {...r.state, currentPlayerIndex:myIdx2};
-      setGs(stateForDouble);
-      if(!solo) saveGameState(roomId, stateForDouble);
-      setDoublePhase('scouted');
-      setMode('play');
-      showMsg('⚡ 스카우트 완료! 이제 카드를 내려놓으세요.');
+      const myIdx2=r.state.players.indexOf(playerId);
+      const sd={...r.state,currentPlayerIndex:myIdx2};
+      setGs(sd); if(!solo)saveGameState(roomId,sd);
+      setDP('scouted'); setMode('play'); showMsg('⚡ 스카우트! 이제 플레이하세요.');
       return;
     }
-    const end = checkRoundEnd(r.state);
-    if(end.ended) return finishRound(r.state, end.winnerId);
-    await persist(r.state);
-    setMode('play');
+    const end=checkRoundEnd(r.state);
+    if(end.ended) return finishRound(r.state,end.winnerId);
+    await persist(r.state); setMode('play'); showMsg('✅ 스카우트!');
   };
 
-  const cancelScout = () => {
-    setScoutIdx(null); setInsertMode(false);
-    if(doublePhase!=='scouted') setMode('play');
-  };
+  const cancelScout=()=>{setSIdx(null);setIM(false);if(doublePhase!=='scouted')setMode('play');};
 
-  const toggleSelect = idx => {
+  const toggleSelect=idx=>{
     if(!isMyTurn||mode!=='play'||insertMode) return;
-    setSelected(prev=>{
-      const next = prev.includes(idx) ? prev.filter(i=>i!==idx) : [...prev,idx].sort((a,b)=>a-b);
+    setSel(prev=>{
+      const next=prev.includes(idx)?prev.filter(i=>i!==idx):[...prev,idx].sort((a,b)=>a-b);
       if(next.length>1&&!isConnectedInHand(myHand,next)) return prev;
       return next;
     });
   };
 
-  const selCards  = selected.map(i=>myHand[i]);
-  const validPlay = selected.length>0 && isConnectedInHand(myHand,selected) && isValidCombination(selCards) && (!gs.field||isStrongerThan(selCards,gs.field.cards));
+  const selCards=selected.map(i=>myHand[i]);
+  const validPlay=selected.length>0&&isConnectedInHand(myHand,selected)&&isValidCombination(selCards)&&(!gs.field||isStrongerThan(selCards,gs.field.cards));
 
-  const handleEmojiSend = async icon => {
-    const name = players.find(p=>p.id===playerId)?.name||'나';
-    const entry = {id:Date.now(), playerId, playerName:name, emoji:icon};
+  const handleEmojiSend=async icon=>{
+    const name=players.find(p=>p.id===playerId)?.name||'나';
+    setME(icon); setTimeout(()=>setME(null),3000);
     if(solo){
-      setLiveEmojis(prev=>[...prev, entry]);
-      setTimeout(()=>setLiveEmojis(prev=>prev.filter(e=>e.id!==entry.id)), 3000);
+      setLE(prev=>({...prev,[playerId]:icon}));
+      setTimeout(()=>setLE(prev=>{const n={...prev};delete n[playerId];return n;}),3000);
     } else {
-      await sendEmoji(roomId, playerId, icon, name);
+      await sendEmoji(roomId,playerId,icon,name);
     }
   };
 
-  // 라운드 종료 확인
-  const handleRoundConfirm = async () => {
-    if(solo){
-      handleNextRound();
-    } else {
-      await confirmRoundReady(roomId, playerId);
-    }
+  const handleRoundConfirm=async()=>{
+    if(solo) handleNextRound();
+    else await confirmRoundReady(roomId,playerId);
   };
 
-  const handleNextRound = async () => {
-    const ngs = {...initializeGame(gs.players), round:(gs.round||1)+1, totalScores:roundEnd.tot};
-    setRoundEnd(null); setSelected([]); setMode('flip_choice'); setScoutIdx(null);
-    setInsertMode(false); setDoublePhase(null); setFlipChoice(null); setFlipConfirmed(false);
-    setRoundReady({});
-    if(!solo) await clearRoundReady(roomId);
+  const handleNextRound=async()=>{
+    const ngs={...initializeGame(gs.players),round:(gs.round||1)+1,totalScores:roundEnd.tot};
+    setRE(null);setSel([]);setMode('flip_choice');setSIdx(null);
+    setIM(false);setDP(null);setFC(null);setRR({});
+    if(!solo)await clearRoundReady(roomId);
     await persist(ngs);
   };
 
-  const handleLeave = async () => {
-    if(!solo) await leaveRoom(roomId, playerId);
-    onLeave();
-  };
+  const handleLeave=async()=>{if(!solo)await leaveRoom(roomId,playerId);onLeave();};
 
-  // 라운드 종료 화면
-  if(roundEnd){
-    return <RoundEndScreen
-      gs={gs} roundEnd={roundEnd} players={players} getName={getName}
-      playerId={playerId} solo={solo} onConfirm={handleRoundConfirm}/>;
-  }
+  if(roundEnd) return <RoundEndScreen gs={gs} roundEnd={roundEnd} players={players} getName={getName} playerId={playerId} solo={solo} onConfirm={handleRoundConfirm}/>;
 
-  // 뒤집기 선택 화면
+  // ── 뒤집기 선택 화면 ──
   if(mode==='flip_choice'){
-    const flipped   = flipEntireHand(myHand);
-    // 모바일 고려: 화면 너비에서 패딩 빼고 사용
-    const panelW    = Math.min(window.innerWidth - 32, 540);
-    const innerW    = panelW - 56; // 패딩 양쪽
-    const fanCur    = computeFan(myHand.length, innerW, 40);
-    const fanFlip   = computeFan(flipped.length, innerW, 40);
-    const cH = 100;
-    return(
-      <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, backdropFilter:'blur(16px)', padding:'16px'}}>
-        <div style={{background:'rgba(20,10,0,0.97)', border:'1px solid rgba(255,200,80,0.25)', borderRadius:22, width:'100%', maxWidth:540, padding:'22px 28px', boxShadow:'0 20px 60px rgba(0,0,0,0.8)', maxHeight:'90vh', overflowY:'auto'}}>
-          <h2 style={{textAlign:'center', marginBottom:4, fontSize:20, color:'#fff'}}>라운드 {gs.round||1} 시작!</h2>
-          <p style={{color:'rgba(255,255,255,0.5)', fontSize:12, textAlign:'center', marginBottom:14}}>뒤집기 여부를 선택하고 <strong style={{color:'#FFE066'}}>확인</strong>을 눌러야 진행됩니다</p>
-
-          {/* 손패 미리보기 */}
-          {[['현재 손패', myHand, fanCur], ['뒤집으면', flipped, fanFlip]].map(([label, cards, fan])=>(
-            <div key={label} style={{marginBottom:14}}>
-              <p style={{fontSize:11, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6}}>{label}</p>
-              <div style={{position:'relative', height:cH, overflow:'hidden'}}>
+    const flipped=flipEntireHand(myHand);
+    const panelW=Math.min(window.innerWidth-32,520);
+    const innerW=panelW-48;
+    const SMALL_W=38, SMALL_STEP=SMALL_W*0.5;
+    const makeFan=(cards)=>{
+      const total=SMALL_STEP*(cards.length-1)+SMALL_W;
+      const startX=total<innerW?Math.max(2,(innerW-total)/2):2;
+      return cards.map((_,i)=>({left:startX+i*SMALL_STEP}));
+    };
+    const curFan=makeFan(myHand), flipFan=makeFan(flipped);
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.92)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,backdropFilter:'blur(16px)',padding:16}}>
+        <div style={{background:'rgba(20,10,0,0.97)',border:'1px solid rgba(255,200,80,0.25)',borderRadius:20,width:'100%',maxWidth:520,padding:'20px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.8)',maxHeight:'90vh',overflowY:'auto'}}>
+          <h2 style={{textAlign:'center',marginBottom:4,fontSize:19,color:'#fff'}}>라운드 {gs.round||1} 시작!</h2>
+          <p style={{color:'rgba(255,255,255,0.45)',fontSize:12,textAlign:'center',marginBottom:16}}>
+            뒤집기 여부 선택 후 <strong style={{color:'#FFE066'}}>확인</strong> 을 눌러야 진행됩니다
+          </p>
+          {[['현재 손패',myHand,curFan],['뒤집으면',flipped,flipFan]].map(([label,cards,fan])=>(
+            <div key={label} style={{marginBottom:12}}>
+              <p style={{fontSize:10,color:'rgba(255,255,255,0.35)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>{label}</p>
+              <div style={{position:'relative',height:80,overflow:'hidden'}}>
                 {cards.map((c,i)=>{
-                  const f = fan[i]||{left:i*20, rotate:0, bottom:0, zIndex:i};
-                  return <HandCard key={c.id+(label==='뒤집으면'?'f':'')} card={c} size="sm"
-                    left={f.left} bottom={f.bottom} rotate={f.rotate} zIndex={f.zIndex}/>;
+                  const f=fan[i]||{left:i*20};
+                  const top=getTopValue(c),bot=getBottomValue(c);
+                  return <div key={c.id+(label==='뒤집으면'?'f':'')} style={{position:'absolute',left:f.left,bottom:2,zIndex:i}}>
+                    <CardFace top={top} bot={bot} w={SMALL_W} h={58} fs={13}
+                      border="1.5px solid rgba(255,255,255,0.2)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>
+                  </div>;
                 })}
               </div>
             </div>
           ))}
-
-          {/* 선택 버튼 */}
-          <div style={{display:'flex', gap:10, marginTop:10}}>
-            <button onClick={()=>handleFlipSelect(false)}
-              style={{...lBtn(flipChoice===false?'#00DC96':'rgba(255,255,255,0.1)','13px',14,flipChoice===false?'#0a1a0a':'#fff'), flex:1,
-                border:`2px solid ${flipChoice===false?'#00DC96':'rgba(255,255,255,0.2)'}`}}>
-              그대로 진행 {flipChoice===false&&'✓'}
-            </button>
-            <button onClick={()=>handleFlipSelect(true)}
-              style={{...lBtn(flipChoice===true?'#E8192C':'rgba(255,255,255,0.1)','13px',14,'#fff'), flex:1,
-                border:`2px solid ${flipChoice===true?'#E8192C':'rgba(255,255,255,0.2)'}`}}>
-              ↕ 뒤집기 {flipChoice===true&&'✓'}
-            </button>
+          <div style={{display:'flex',gap:9,marginTop:8}}>
+            <button onClick={()=>setFC(false)} style={{...lBtn(flipChoice===false?'#00DC96':'rgba(255,255,255,0.09)','12px',13,flipChoice===false?'#0a1a0a':'#fff'),flex:1,border:`2px solid ${flipChoice===false?'#00DC96':'rgba(255,255,255,0.18)'}`}}>그대로{flipChoice===false?' ✓':''}</button>
+            <button onClick={()=>setFC(true)}  style={{...lBtn(flipChoice===true?'#E8192C':'rgba(255,255,255,0.09)','12px',13,'#fff'),flex:1,border:`2px solid ${flipChoice===true?'#E8192C':'rgba(255,255,255,0.18)'}`}}>↕ 뒤집기{flipChoice===true?' ✓':''}</button>
           </div>
-
-          {/* 확인 버튼 — 선택 후에만 활성화 */}
           <button onClick={handleFlipConfirm} disabled={flipChoice===null}
-            style={{...lBtn(flipChoice!==null?'#FFE066':'#333','15px',16,flipChoice!==null?'#1a1a1a':'rgba(255,255,255,0.2)'), width:'100%', marginTop:12,
-              boxShadow:flipChoice!==null?'0 4px 20px rgba(255,224,102,0.5)':'none',
-              transition:'all 0.2s'}}>
-            {flipChoice===null ? '먼저 위에서 선택해주세요' : '✓ 확인 — 게임 시작!'}
+            style={{...lBtn(flipChoice!==null?'#FFE066':'#333','13px',15,flipChoice!==null?'#1a1a1a':'rgba(255,255,255,0.2)'),width:'100%',marginTop:10,boxShadow:flipChoice!==null?'0 4px 18px rgba(255,224,102,0.5)':'none',transition:'all 0.2s'}}>
+            {flipChoice===null?'먼저 위에서 선택해주세요':'✓ 확인 — 게임 시작!'}
           </button>
         </div>
       </div>
     );
   }
 
-  // ── 마당패 겹침 레이아웃 ──
-  const fieldCards = gs.field?.cards||[];
-  const FIELD_W    = 58;
-  const fieldStep  = FIELD_W * (2/3);
-  const fieldTotalW = fieldStep*(fieldCards.length-1)+FIELD_W+20;
-  const otherPlayers = players.filter(p=>p.id!==playerId);
-  const scoutModeActive = (mode==='scout'||mode==='double')&&isMyTurn&&canScout&&!insertMode;
-
-  // 손패 팬 레이아웃
-  const CARD_W   = 52;
-  const fanLayout = computeFan(myHand.length, handW, CARD_W);
-  const handH    = 120;
-
-  // 삽입 모드 팬 (좀 더 벌어지게)
-  const insertFanLayout = computeFan(myHand.length, handW, CARD_W);
+  // ── 메인 게임 화면 ──
+  const fieldCards=gs.field?.cards||[];
+  const FIELD_W=54, fieldStep=FIELD_W*0.58;
+  const fieldTotalW=fieldStep*(fieldCards.length-1)+FIELD_W+16;
+  const otherPlayers=players.filter(p=>p.id!==playerId);
+  const scoutModeActive=(mode==='scout'||mode==='double')&&isMyTurn&&canScout&&!insertMode;
 
   return (
-    <div style={{width:'100vw', height:'100vh', position:'relative', overflow:'hidden',
-      background:'radial-gradient(ellipse at 25% 15%, #d4892e 0%, #9b5a0f 35%, #5a2d00 70%, #3a1a00 100%)',
+    <div style={{width:'100vw',height:'100vh',position:'relative',overflow:'hidden',
+      background:'radial-gradient(ellipse at 25% 10%, #d4892e 0%, #9b5a0f 30%, #5a2d00 65%, #3a1a00 100%)',
       fontFamily:'Nunito,sans-serif'}}>
-      <div style={{position:'absolute', inset:0, background:'repeating-conic-gradient(from 0deg, rgba(255,255,255,0.025) 0deg 10deg, transparent 10deg 20deg)', pointerEvents:'none'}}/>
+      <div style={{position:'absolute',inset:0,background:'repeating-conic-gradient(from 0deg,rgba(255,255,255,0.02) 0deg 10deg,transparent 10deg 20deg)',pointerEvents:'none'}}/>
 
-      {/* 헤더 */}
-      <div style={{position:'absolute', top:0, left:0, right:0, height:50, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 12px', zIndex:10}}>
-        <div style={{background:'rgba(0,0,0,0.5)', borderRadius:11, padding:'4px 12px', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,0.1)'}}>
-          <div style={{fontSize:9, color:'rgba(255,255,255,0.45)', textTransform:'uppercase', letterSpacing:'0.1em'}}>ROUND</div>
-          <div style={{fontSize:20, fontWeight:900, color:'#fff', lineHeight:1}}>{gs.round||1}</div>
+      {/* ── 헤더 ── */}
+      <div style={{position:'absolute',top:0,left:0,right:0,height:48,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 10px',zIndex:10}}>
+        <div style={{background:'rgba(0,0,0,0.5)',borderRadius:10,padding:'3px 11px',backdropFilter:'blur(8px)',border:'1px solid rgba(255,255,255,0.1)'}}>
+          <div style={{fontSize:8,color:'rgba(255,255,255,0.45)',textTransform:'uppercase',letterSpacing:'0.1em'}}>ROUND</div>
+          <div style={{fontSize:19,fontWeight:900,color:'#fff',lineHeight:1}}>{gs.round||1}</div>
         </div>
-        <div style={{display:'flex', gap:7, alignItems:'center'}}>
-          {aiThinking&&!aiAction&&<span style={{fontSize:11, color:'rgba(255,255,255,0.45)', animation:'pulse 1s infinite', background:'rgba(0,0,0,0.4)', padding:'4px 10px', borderRadius:8}}>🤖 생각 중...</span>}
-          <EmojiPanel onSend={handleEmojiSend}/>
-          <button onClick={()=>setShowHelp(v=>!v)} style={{width:36, height:36, borderRadius:'50%', background:'rgba(0,0,0,0.4)', border:'2px solid rgba(255,255,255,0.2)', color:'#fff', fontSize:15, cursor:'pointer', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center'}}>?</button>
-          <div style={{background:'rgba(0,0,0,0.5)', borderRadius:18, padding:'4px 12px', backdropFilter:'blur(8px)', border:'1px solid rgba(255,200,80,0.3)', display:'flex', alignItems:'center', gap:5}}>
-            <span style={{fontSize:13}}>🏅</span>
-            <span style={{fontWeight:800, fontSize:14, color:'#FFE066'}}>{gs.tokens||0}</span>
+        {/* 턴 타이머 — 내 차례에만 */}
+        {isMyTurn&&mode!=='flip_choice'&&(
+          <div style={{background:turnSec<=10?'rgba(232,25,44,0.25)':'rgba(0,0,0,0.4)',borderRadius:20,padding:'4px 12px',border:`1.5px solid ${turnSec<=10?'#E8192C':'rgba(255,255,255,0.15)'}`,backdropFilter:'blur(8px)',display:'flex',alignItems:'center',gap:5}}>
+            <span style={{fontSize:12,color:turnSec<=10?'#FF8080':'rgba(255,255,255,0.6)'}}>⏱</span>
+            <span style={{fontWeight:800,fontSize:15,color:turnSec<=10?'#FF6B6B':'#eee',lineHeight:1}}>{turnSec}</span>
           </div>
-          <button onClick={handleLeave} style={{width:36, height:36, borderRadius:'50%', background:'rgba(0,0,0,0.4)', border:'2px solid rgba(255,255,255,0.15)', color:'rgba(255,255,255,0.55)', fontSize:15, cursor:'pointer', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center'}}>✕</button>
+        )}
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          {aiThinking&&!actionNotice&&<span style={{fontSize:10,color:'rgba(255,255,255,0.45)',animation:'pulse 1s infinite',background:'rgba(0,0,0,0.4)',padding:'3px 8px',borderRadius:7}}>🤖 생각 중...</span>}
+          <button onClick={()=>setSH(v=>!v)} style={{width:34,height:34,borderRadius:'50%',background:'rgba(0,0,0,0.4)',border:'2px solid rgba(255,255,255,0.2)',color:'#fff',fontSize:14,cursor:'pointer',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center'}}>?</button>
+          <div style={{background:'rgba(0,0,0,0.5)',borderRadius:16,padding:'3px 10px',backdropFilter:'blur(8px)',border:'1px solid rgba(255,200,80,0.3)',display:'flex',alignItems:'center',gap:4}}>
+            <span style={{fontSize:12}}>🏅</span>
+            <span style={{fontWeight:800,fontSize:13,color:'#FFE066'}}>{gs.tokens||0}</span>
+          </div>
+          <button onClick={handleLeave} style={{width:34,height:34,borderRadius:'50%',background:'rgba(0,0,0,0.4)',border:'2px solid rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.5)',fontSize:14,cursor:'pointer',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
         </div>
       </div>
 
-      {/* 상대방 패널 — 무조건 1줄 가로 배치 */}
-      <div style={{position:'absolute', top:58, left:8, right:8, zIndex:10, display:'flex', gap:6, flexWrap:'nowrap'}}>
+      {/* ── 상대방 패널 (헤더 바로 아래, 1줄) ── */}
+      <div style={{position:'absolute',top:52,left:8,right:8,zIndex:10,display:'flex',gap:5,flexWrap:'nowrap'}}>
         {otherPlayers.map(p=>(
-          <OpponentPanel key={p.id} p={p} gs={gs} players={players} isCur={p.id===curId}/>
+          <OpponentPanel key={p.id} p={p} gs={gs} players={players} isCur={p.id===curId} emoji={liveEmojis[p.id]}/>
         ))}
       </div>
 
-      {/* 마당패 */}
-      <div style={{position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-58%)', zIndex:5, display:'flex', flexDirection:'column', alignItems:'center', gap:10}}>
+      {/* ── AI 행동 알림 ── */}
+      <ActionNotice action={actionNotice}/>
+
+      {/* ── 마당패 영역 (중앙 약간 위) ── */}
+      <div style={{position:'absolute',top:'40%',left:'50%',transform:'translate(-50%,-50%)',zIndex:5,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
         {!gs.field?(
-          <div style={{background:'rgba(0,0,0,0.3)', borderRadius:18, padding:'20px 28px', border:'2px dashed rgba(255,255,255,0.2)', backdropFilter:'blur(8px)', textAlign:'center'}}>
-            <div style={{fontSize:24, marginBottom:4}}>🃏</div>
-            <p style={{color:'rgba(255,255,255,0.5)', fontSize:14, fontWeight:600}}>마당 패 없음</p>
-            <p style={{color:'rgba(255,255,255,0.3)', fontSize:12, marginTop:2}}>첫 번째로 카드를 내려놓으세요</p>
+          <div style={{background:'rgba(0,0,0,0.3)',borderRadius:16,padding:'16px 24px',border:'2px dashed rgba(255,255,255,0.18)',backdropFilter:'blur(8px)',textAlign:'center'}}>
+            <div style={{fontSize:22,marginBottom:4}}>🃏</div>
+            <p style={{color:'rgba(255,255,255,0.45)',fontSize:13,fontWeight:600}}>마당 패 없음</p>
+            <p style={{color:'rgba(255,255,255,0.3)',fontSize:11,marginTop:2}}>첫 번째로 내려놓으세요</p>
           </div>
         ):(
           <>
-            <div style={{background:'rgba(0,0,0,0.45)', borderRadius:9, padding:'3px 12px', backdropFilter:'blur(6px)'}}>
-              <span style={{fontSize:12, color:'#FFE066', fontWeight:700}}>{getName(gs.field.ownerId)}의 마당 패 ({fieldCards.length}장)</span>
+            <div style={{background:'rgba(0,0,0,0.45)',borderRadius:8,padding:'2px 11px',backdropFilter:'blur(6px)'}}>
+              <span style={{fontSize:11,color:'#FFE066',fontWeight:700}}>{getName(gs.field.ownerId)}의 마당 ({fieldCards.length}장)</span>
             </div>
-            <div style={{position:'relative', height:110, width:Math.max(fieldTotalW, 80)}}>
+            <div style={{position:'relative',height:100,width:Math.max(fieldTotalW,80)}}>
               {fieldCards.map((fc,idx)=>(
                 <FieldCard key={idx} fc={fc}
-                  scoutable={scoutModeActive && (idx===0||idx===fieldCards.length-1)}
-                  left={idx*fieldStep}
-                  zIndex={idx}
-                  totalCards={fieldCards.length}
+                  scoutable={scoutModeActive&&(idx===0||idx===fieldCards.length-1)}
+                  left={idx*fieldStep} zIndex={idx} totalCards={fieldCards.length}
                   onScout={sf=>handleSelectField(idx,sf)}/>
               ))}
             </div>
-            {scoutModeActive && (
-              <div style={{background:'rgba(255,224,102,0.12)', borderRadius:9, padding:'4px 12px', border:'1px solid rgba(255,224,102,0.35)'}}>
-                <p style={{fontSize:11, color:'#FFE066', textAlign:'center'}}>← 양끝 카드 클릭/호버 후 가져오기 →</p>
-              </div>
-            )}
-            {insertMode && (
-              <div style={{background:'rgba(0,220,150,0.12)', borderRadius:9, padding:'4px 12px', border:'1px solid rgba(0,220,150,0.35)'}}>
-                <p style={{fontSize:11, color:'#00DC96', textAlign:'center'}}>↓ 아래 손패에서 삽입 위치 선택</p>
-              </div>
-            )}
+            {scoutModeActive&&!insertMode&&<div style={{background:'rgba(255,224,102,0.1)',borderRadius:8,padding:'3px 10px',border:'1px solid rgba(255,224,102,0.3)'}}>
+              <p style={{fontSize:10,color:'#FFE066',textAlign:'center'}}>← 양끝 카드 클릭 후 가져오기 →</p>
+            </div>}
+            {insertMode&&<div style={{background:'rgba(0,220,150,0.1)',borderRadius:8,padding:'3px 10px',border:'1px solid rgba(0,220,150,0.3)'}}>
+              <p style={{fontSize:10,color:'#00DC96',textAlign:'center'}}>↓ 아래에서 삽입 위치 선택</p>
+            </div>}
           </>
         )}
       </div>
 
-      {/* AI 행동 알림 */}
-      {aiAction&&(
-        <div style={{position:'absolute', top:58, right:10, zIndex:20, background:'rgba(0,0,0,0.75)', borderRadius:14, padding:'10px 14px', border:'1px solid rgba(255,200,80,0.4)', backdropFilter:'blur(12px)', maxWidth:220}}>
-          <p style={{fontSize:13, fontWeight:800, color:'#FFE066', marginBottom:6}}>🤖 {aiAction.name}</p>
-          {aiAction.type==='play'?(
-            <div><p style={{fontSize:10, color:'rgba(255,255,255,0.45)', marginBottom:5}}>플레이:</p>
-            <div style={{display:'flex', gap:3, flexWrap:'wrap'}}>
-              {aiAction.cards.map((c,i)=><CardFace key={i} top={getTopValue(c)} bot={getBottomValue(c)} w={36} h={54} fs={13} border="2px solid rgba(255,255,255,0.25)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>)}
-            </div></div>
-          ):<p style={{fontSize:12, color:'rgba(255,255,255,0.55)'}}>스카우트 → [{aiAction.val}] 가져감</p>}
-        </div>
-      )}
+      {/* ── 스카우트 애니메이션 ── */}
+      {scoutAnim&&<ScoutAnim card={scoutAnim.card} toLabel={scoutAnim.toLabel} onDone={()=>setSA(null)}/>}
 
-      {/* 감정표현 오버레이 */}
-      <EmojiOverlay emojis={liveEmojis} players={players}/>
-
-      {/* 스카우트 애니메이션 */}
-      {scoutAnim && (
-        <ScoutAnimation
-          card={scoutAnim.card}
-          toLabel={scoutAnim.toLabel}
-          onDone={()=>setScoutAnim(null)}/>
-      )}
-
-      {/* 하단 */}
-      <div style={{position:'absolute', bottom:0, left:0, right:0, zIndex:10}}>
+      {/* ── 하단 손패 영역 ── */}
+      <div style={{position:'absolute',bottom:0,left:0,right:0,zIndex:10}}>
         {/* 더블액션 배너 */}
         {doublePhase==='scouted'&&isMyTurn&&(
-          <div style={{display:'flex', justifyContent:'center', marginBottom:6}}>
-            <div style={{background:'rgba(255,184,0,0.2)', border:'2px solid #FFB800', borderRadius:11, padding:'6px 18px', backdropFilter:'blur(8px)'}}>
-              <span style={{fontSize:13, color:'#FFE066', fontWeight:800}}>⚡ 더블액션 — 이제 카드를 선택해서 플레이!</span>
+          <div style={{display:'flex',justifyContent:'center',marginBottom:5}}>
+            <div style={{background:'rgba(255,184,0,0.18)',border:'1.5px solid #FFB800',borderRadius:10,padding:'5px 16px',backdropFilter:'blur(8px)'}}>
+              <span style={{fontSize:12,color:'#FFE066',fontWeight:800}}>⚡ 더블액션 — 이제 카드를 플레이!</span>
             </div>
           </div>
         )}
-
         {/* 액션 버튼 */}
         {isMyTurn&&!insertMode&&doublePhase===null&&(
-          <div style={{display:'flex', justifyContent:'center', gap:7, marginBottom:6, padding:'0 14px'}}>
+          <div style={{display:'flex',justifyContent:'center',gap:6,marginBottom:5,padding:'0 10px'}}>
             {[['play','🃏','플레이',true],['scout','🔍','스카우트',canScout],['double','⚡','더블',canDouble]].map(([m,ic,nm,en])=>(
-              <button key={m} onClick={()=>{ if(en){ setMode(m); setSelected([]); }}} style={{
+              <button key={m} onClick={()=>{if(en){setMode(m);setSel([]);}}} style={{
                 background:mode===m?'rgba(232,25,44,0.85)':'rgba(0,0,0,0.55)',
-                border:`2px solid ${mode===m?'#E8192C':'rgba(255,255,255,0.14)'}`,
-                borderRadius:13, color:en?'#fff':'rgba(255,255,255,0.22)',
-                fontFamily:'Nunito,sans-serif', padding:'7px 15px', cursor:en?'pointer':'not-allowed',
-                backdropFilter:'blur(8px)', fontWeight:700, fontSize:14, display:'flex', alignItems:'center', gap:5,
-                transition:'all 0.14s', boxShadow:mode===m?'0 4px 14px rgba(232,25,44,0.45)':'none',
+                border:`2px solid ${mode===m?'#E8192C':'rgba(255,255,255,0.13)'}`,
+                borderRadius:11,color:en?'#fff':'rgba(255,255,255,0.22)',
+                fontFamily:'Nunito,sans-serif',padding:'6px 13px',cursor:en?'pointer':'not-allowed',
+                backdropFilter:'blur(8px)',fontWeight:700,fontSize:13,display:'flex',alignItems:'center',gap:4,
+                transition:'all 0.14s',boxShadow:mode===m?'0 3px 12px rgba(232,25,44,0.4)':'none',
               }}>
-                <span style={{fontSize:17}}>{ic}</span>{nm}
+                <span style={{fontSize:15}}>{ic}</span>{nm}
               </button>
             ))}
           </div>
         )}
-
-        {/* 삽입 배너 */}
+        {/* 삽입 모드 배너 */}
         {insertMode&&isMyTurn&&(
-          <div style={{display:'flex', justifyContent:'center', alignItems:'center', gap:10, marginBottom:6, padding:'0 14px'}}>
-            <div style={{background:'rgba(0,220,150,0.18)', border:'1.5px solid #00DC96', borderRadius:11, padding:'5px 14px', backdropFilter:'blur(8px)'}}>
-              <span style={{fontSize:13, color:'#00DC96', fontWeight:700}}>📌 삽입 위치 ↓ 클릭</span>
+          <div style={{display:'flex',justifyContent:'center',alignItems:'center',gap:8,marginBottom:5,padding:'0 10px'}}>
+            <div style={{background:'rgba(0,220,150,0.16)',border:'1.5px solid #00DC96',borderRadius:10,padding:'4px 12px',backdropFilter:'blur(8px)'}}>
+              <span style={{fontSize:12,color:'#00DC96',fontWeight:700}}>📌 삽입 위치 클릭</span>
             </div>
-            <button onClick={cancelScout} style={{background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.18)', borderRadius:9, color:'rgba(255,255,255,0.55)', fontFamily:'Nunito,sans-serif', fontSize:12, padding:'5px 12px', cursor:'pointer'}}>취소</button>
+            <button onClick={cancelScout} style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.16)',borderRadius:8,color:'rgba(255,255,255,0.5)',fontFamily:'Nunito,sans-serif',fontSize:12,padding:'4px 10px',cursor:'pointer'}}>취소</button>
           </div>
         )}
-
         {/* 플레이 버튼 */}
         {isMyTurn&&(mode==='play'||doublePhase==='scouted')&&!insertMode&&selected.length>0&&(
-          <div style={{display:'flex', justifyContent:'center', gap:8, marginBottom:6}}>
-            <button onClick={handlePlay} disabled={!validPlay} style={{background:validPlay?'#E8192C':'rgba(255,255,255,0.09)', border:`2px solid ${validPlay?'#E8192C':'rgba(255,255,255,0.18)'}`, borderRadius:13, color:validPlay?'#fff':'rgba(255,255,255,0.28)', fontFamily:'Nunito,sans-serif', fontSize:14, fontWeight:800, padding:'7px 20px', cursor:validPlay?'pointer':'not-allowed', backdropFilter:'blur(8px)', transition:'all 0.14s', boxShadow:validPlay?'0 4px 18px rgba(232,25,44,0.55)':'none'}}>
+          <div style={{display:'flex',justifyContent:'center',gap:7,marginBottom:5}}>
+            <button onClick={handlePlay} disabled={!validPlay} style={{background:validPlay?'#E8192C':'rgba(255,255,255,0.09)',border:`2px solid ${validPlay?'#E8192C':'rgba(255,255,255,0.16)'}`,borderRadius:11,color:validPlay?'#fff':'rgba(255,255,255,0.28)',fontFamily:'Nunito,sans-serif',fontSize:13,fontWeight:800,padding:'6px 18px',cursor:validPlay?'pointer':'not-allowed',backdropFilter:'blur(8px)',transition:'all 0.14s',boxShadow:validPlay?'0 3px 16px rgba(232,25,44,0.5)':'none'}}>
               {validPlay?`✓ 플레이! (${selected.length}장)`:'✗ 유효하지 않음'}
             </button>
-            <button onClick={()=>setSelected([])} style={{background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.18)', borderRadius:11, color:'rgba(255,255,255,0.45)', fontFamily:'Nunito,sans-serif', fontSize:13, padding:'7px 13px', cursor:'pointer', backdropFilter:'blur(8px)'}}>취소</button>
+            <button onClick={()=>setSel([])} style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.16)',borderRadius:10,color:'rgba(255,255,255,0.4)',fontFamily:'Nunito,sans-serif',fontSize:12,padding:'6px 12px',cursor:'pointer',backdropFilter:'blur(8px)'}}>취소</button>
           </div>
         )}
 
-        {/* 손패 */}
-        <div style={{background:'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.42) 100%)', backdropFilter:'blur(10px)', borderTop:'1px solid rgba(255,255,255,0.08)', padding:'10px 16px 20px'}}>
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6}}>
-            <div style={{display:'flex', alignItems:'center', gap:9}}>
-              <div style={{position:'relative'}}>
-                <div style={{width:34, height:34, borderRadius:'50%', background:myColor, display:'flex', alignItems:'center', justifyContent:'center', fontSize:19, border:`2.5px solid ${isMyTurn?'#FFE066':'rgba(255,255,255,0.2)'}`}}>{getAvatar(playerId)}</div>
-                {isMyTurn&&<div style={{position:'absolute', bottom:-2, right:-2, width:9, height:9, borderRadius:'50%', background:'#FFE066', border:'2px solid #000', animation:'pulse 1s infinite'}}/>}
+        {/* ── 내 손패 바 ── */}
+        <div style={{background:'linear-gradient(to top,rgba(0,0,0,0.82) 0%,rgba(0,0,0,0.44) 100%)',backdropFilter:'blur(10px)',borderTop:'1px solid rgba(255,255,255,0.08)',padding:'8px 10px 16px'}}>
+          {/* 내 정보 + 감정표현 버튼 */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <div style={{position:'relative',flexShrink:0}}>
+                <div style={{width:32,height:32,borderRadius:'50%',background:myColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,border:`2.5px solid ${isMyTurn?'#FFE066':'rgba(255,255,255,0.2)'}`}}>{getAvatar(playerId)}</div>
+                {isMyTurn&&<div style={{position:'absolute',bottom:-2,right:-2,width:8,height:8,borderRadius:'50%',background:'#FFE066',border:'1.5px solid #000',animation:'pulse 1s infinite'}}/>}
+                {/* 내 감정 이모지 — 아바타 위 */}
+                {myEmoji&&<div style={{position:'absolute',top:-26,left:'50%',transform:'translateX(-50%)',fontSize:20,animation:'emojiPop 0.3s ease',pointerEvents:'none',zIndex:20}}>{myEmoji}</div>}
               </div>
               <div>
-                <span style={{fontSize:13, fontWeight:800, color:isMyTurn?'#FFE066':'rgba(255,255,255,0.7)'}}>
-                  {players.find(p=>p.id===playerId)?.name||'나'} ({myHand.length}장)
-                </span>
-                {isMyTurn&&<div style={{fontSize:10, color:'#FFE066', animation:'pulse 1.5s infinite'}}>← 내 차례!</div>}
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{fontSize:12,fontWeight:800,color:isMyTurn?'#FFE066':'rgba(255,255,255,0.7)'}}>
+                    {players.find(p=>p.id===playerId)?.name||'나'} ({myHand.length}장)
+                  </span>
+                  {/* 감정표현 버튼 — 이름 옆에 배치, 찾기 쉽게! */}
+                  <EmojiPanel onSend={handleEmojiSend}/>
+                </div>
+                {isMyTurn&&<div style={{fontSize:10,color:'#FFE066',animation:'pulse 1.5s infinite'}}>← 내 차례!</div>}
               </div>
             </div>
-            <div style={{display:'flex', gap:12, alignItems:'center'}}>
-              <div style={{textAlign:'center'}}>
-                <div style={{fontSize:9, color:'rgba(255,255,255,0.35)', textTransform:'uppercase'}}>토큰</div>
-                <div style={{fontSize:16, fontWeight:900, color:'#FFE066', lineHeight:1}}>{gs.scores?.[playerId]||0}</div>
-              </div>
-              <div style={{textAlign:'center'}}>
-                <div style={{fontSize:9, color:'rgba(255,255,255,0.35)', textTransform:'uppercase'}}>먹은 패</div>
-                <div style={{fontSize:16, fontWeight:900, color:'#00DC96', lineHeight:1}}>{gs.capturedCards?.[playerId]||0}</div>
-              </div>
-              <div style={{textAlign:'center'}}>
-                <div style={{fontSize:9, color:'rgba(255,255,255,0.35)', textTransform:'uppercase'}}>더블</div>
-                <div style={{fontSize:16, fontWeight:900, color:canDouble?'#FFE066':'rgba(255,255,255,0.2)', lineHeight:1}}>{canDouble?'⚡':'✓'}</div>
-              </div>
+            <div style={{display:'flex',gap:10,alignItems:'center'}}>
+              <div style={{textAlign:'center'}}><div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase'}}>토큰</div><div style={{fontSize:15,fontWeight:900,color:'#FFE066',lineHeight:1}}>{gs.scores?.[playerId]||0}</div></div>
+              <div style={{textAlign:'center'}}><div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase'}}>먹은 패</div><div style={{fontSize:15,fontWeight:900,color:'#00DC96',lineHeight:1}}>{gs.capturedCards?.[playerId]||0}</div></div>
+              <div style={{textAlign:'center'}}><div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase'}}>더블</div><div style={{fontSize:15,fontWeight:900,color:canDouble?'#FFE066':'rgba(255,255,255,0.18)',lineHeight:1}}>{canDouble?'⚡':'✓'}</div></div>
             </div>
           </div>
 
-          {/* 부채꼴 손패 */}
-          <div ref={handContainerRef} style={{position:'relative', height:handH+16, overflow:'visible', width:'100%'}}>
-            {insertMode ? (
-              <>
-                {insertFanLayout.map((f,i)=>(
-                  <HandCard key={myHand[i]?.id||i} card={myHand[i]} size="md"
-                    left={f.left+14} bottom={f.bottom+2} rotate={f.rotate} zIndex={i}/>
+          {/* ── 손패 — 가로 스크롤 ── */}
+          <div style={{overflowX:'auto',overflowY:'visible',WebkitOverflowScrolling:'touch',
+            paddingBottom:2, /* scrollbar 공간 */ }}>
+            {insertMode?(
+              /* 삽입 모드 */
+              <div style={{display:'flex',alignItems:'flex-end',gap:0,paddingTop:20,paddingLeft:4,paddingRight:4,minWidth:'max-content'}}>
+                <InsertBtn onClick={()=>handleInsert(0)}/>
+                {myHand.map((c,i)=>(
+                  <div key={c.id||i} style={{display:'flex',alignItems:'flex-end',flexShrink:0}}>
+                    <div style={{width:CARD_W,flexShrink:0}}>
+                      <CardFace top={getTopValue(c)} bot={getBottomValue(c)} w={CARD_W} h={CARD_H} fs={CARD_FS}
+                        border="1.5px solid rgba(255,255,255,0.22)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>
+                    </div>
+                    <InsertBtn onClick={()=>handleInsert(i+1)}/>
+                  </div>
                 ))}
-                {Array.from({length:myHand.length+1},(_,i)=>{
-                  const prevLeft  = i===0 ? (insertFanLayout[0]?.left||0) : insertFanLayout[i-1]?.left||0;
-                  const nextLeft  = insertFanLayout[i]?.left;
-                  const insertX   = i===0 ? prevLeft+14-10
-                                  : i===myHand.length ? (insertFanLayout[i-1]?.left||0)+CARD_W+14
-                                  : (prevLeft+nextLeft)/2+14;
-                  return <InsertBtn key={`ins-${i}`} onClick={()=>handleInsert(i)} left={insertX} zIndex={500+i}/>;
-                })}
-              </>
+              </div>
             ):(
-              fanLayout.map((f,i)=>(
-                <HandCard key={myHand[i]?.id||i} card={myHand[i]} size="md"
-                  left={f.left} bottom={f.bottom} rotate={f.rotate} zIndex={i}
-                  selected={selected.includes(i)}
-                  clickable={isMyTurn&&(mode==='play'||doublePhase==='scouted')}
-                  onClick={()=>toggleSelect(i)}/>
-              ))
+              /* 일반 손패 — 1/2 겹침 가로 스크롤 */
+              <div style={{display:'flex',alignItems:'flex-end',paddingLeft:4,paddingRight:8,paddingTop:6,minWidth:'max-content'}}>
+                {myHand.map((c,idx)=>{
+                  const isSel=selected.includes(idx);
+                  return (
+                    <div key={c.id||idx}
+                      onClick={()=>toggleSelect(idx)}
+                      style={{
+                        flexShrink:0,
+                        marginLeft:idx===0?0:-(CARD_W*0.42),
+                        zIndex:isSel?1000:idx,
+                        position:'relative',
+                        transform:isSel?'translateY(-16px)':'translateY(0)',
+                        transition:'transform 0.15s cubic-bezier(0.34,1.4,0.64,1)',
+                        cursor:isMyTurn&&(mode==='play'||doublePhase==='scouted')?'pointer':'default',
+                      }}>
+                      <CardFace top={getTopValue(c)} bot={getBottomValue(c)} w={CARD_W} h={CARD_H} fs={CARD_FS}
+                        border={isSel?'2.5px solid #FFE066':'1.5px solid rgba(255,255,255,0.25)'}
+                        shadow={isSel?'0 0 16px rgba(255,224,102,0.8),0 5px 16px rgba(0,0,0,0.7)':'0 2px 8px rgba(0,0,0,0.5)'}/>
+                      {isSel&&<div style={{position:'absolute',inset:0,borderRadius:9,background:'rgba(255,224,102,0.1)',pointerEvents:'none'}}/>}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
       </div>
 
       {!isMyTurn&&!aiThinking&&(
-        <div style={{position:'absolute', bottom:210, left:'50%', transform:'translateX(-50%)', background:'rgba(0,0,0,0.52)', borderRadius:18, padding:'6px 16px', backdropFilter:'blur(8px)', zIndex:5, whiteSpace:'nowrap'}}>
-          <p style={{fontSize:13, color:'rgba(255,255,255,0.5)', textAlign:'center'}}>{getName(curId)}의 차례...</p>
+        <div style={{position:'absolute',bottom:185,left:'50%',transform:'translateX(-50%)',background:'rgba(0,0,0,0.5)',borderRadius:16,padding:'5px 14px',backdropFilter:'blur(8px)',zIndex:5,whiteSpace:'nowrap'}}>
+          <p style={{fontSize:12,color:'rgba(255,255,255,0.45)',textAlign:'center'}}>{getName(curId)}의 차례...</p>
         </div>
       )}
 
       {/* 도움말 */}
       {showHelp&&(
-        <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, backdropFilter:'blur(8px)'}} onClick={()=>setShowHelp(false)}>
-          <div style={{background:'rgba(20,10,0,0.97)', border:'1px solid rgba(255,200,80,0.3)', borderRadius:20, padding:26, maxWidth:360, width:'90%'}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{color:'#FFE066', marginBottom:15, fontSize:17}}>게임 방법</h3>
-            {[['🃏','A. 플레이','마당보다 강한 조합 내려놓기'],['🔍','B. 스카우트','마당 끝 카드를 손패에 삽입 (클릭 또는 호버)'],['⚡','C. 더블','스카우트 후 바로 플레이 (1회)'],['↕','뒤집기','라운드 시작 전 선택 후 확인']].map(([ic,nm,ds])=>(
-              <div key={nm} style={{display:'flex', gap:11, marginBottom:13, alignItems:'flex-start'}}>
-                <span style={{fontSize:21, flexShrink:0}}>{ic}</span>
-                <div><div style={{fontWeight:800, color:'#fff', fontSize:14}}>{nm}</div><div style={{color:'rgba(255,255,255,0.45)', fontSize:12, marginTop:2}}>{ds}</div></div>
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,backdropFilter:'blur(8px)'}} onClick={()=>setSH(false)}>
+          <div style={{background:'rgba(20,10,0,0.97)',border:'1px solid rgba(255,200,80,0.3)',borderRadius:18,padding:24,maxWidth:340,width:'90%'}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{color:'#FFE066',marginBottom:13,fontSize:16}}>게임 방법</h3>
+            {[['🃏','A. 플레이','마당보다 강한 조합 내려놓기'],['🔍','B. 스카우트','양끝 카드 클릭→ 가져오기'],['⚡','C. 더블','스카우트 후 바로 플레이'],['😊','감정표현','이름 옆 버튼 → 이모지 선택']].map(([ic,nm,ds])=>(
+              <div key={nm} style={{display:'flex',gap:10,marginBottom:11,alignItems:'flex-start'}}>
+                <span style={{fontSize:19,flexShrink:0}}>{ic}</span>
+                <div><div style={{fontWeight:800,color:'#fff',fontSize:13}}>{nm}</div><div style={{color:'rgba(255,255,255,0.45)',fontSize:11,marginTop:1}}>{ds}</div></div>
               </div>
             ))}
-            <button onClick={()=>setShowHelp(false)} style={{...lBtn('#E8192C','10px',14), width:'100%', marginTop:7}}>닫기</button>
+            <button onClick={()=>setSH(false)} style={{...lBtn('#E8192C','9px',13),width:'100%',marginTop:6}}>닫기</button>
           </div>
         </div>
       )}
 
       {msg&&(
-        <div style={{position:'fixed', top:'38%', left:'50%', transform:'translate(-50%,-50%)', background:'rgba(10,5,0,0.94)', color:'#fff', padding:'12px 26px', borderRadius:26, fontSize:16, fontWeight:700, zIndex:1000, backdropFilter:'blur(12px)', border:'1px solid rgba(255,255,255,0.13)', pointerEvents:'none', boxShadow:'0 8px 30px rgba(0,0,0,0.6)'}}>
+        <div style={{position:'fixed',top:'36%',left:'50%',transform:'translate(-50%,-50%)',background:'rgba(10,5,0,0.94)',color:'#fff',padding:'10px 22px',borderRadius:22,fontSize:15,fontWeight:700,zIndex:1000,backdropFilter:'blur(12px)',border:'1px solid rgba(255,255,255,0.12)',pointerEvents:'none',boxShadow:'0 6px 24px rgba(0,0,0,0.6)'}}>
           {msg}
         </div>
       )}
 
       <style>{`
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-        @keyframes slideIn{from{transform:translateX(30px);opacity:0}to{transform:translateX(0);opacity:1}}
-        @keyframes fadeIn{from{opacity:0;transform:translate(-50%,-60%)}to{opacity:1;transform:translate(-50%,-50%)}}
-        @keyframes emojiPop{0%{opacity:0;transform:translate(-50%,-50%) scale(0.3)}60%{transform:translate(-50%,-50%) scale(1.15)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+        @keyframes emojiPop{0%{opacity:0;transform:translate(-50%,4px) scale(0.5)}70%{transform:translate(-50%,-2px) scale(1.2)}100%{opacity:1;transform:translate(-50%,0) scale(1)}}
+        @keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
         *{box-sizing:border-box}
-        ::-webkit-scrollbar{height:3px;width:3px}
-        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:2px}
+        ::-webkit-scrollbar{height:4px;width:4px}
+        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+        ::-webkit-scrollbar-track{background:transparent}
       `}</style>
     </div>
   );
 }
 
-// ─── 앱 루트 ──────────────────────────────────────────────────
-export default function App() {
-  const [screen,setScreen] = useState('lobby');
-  const [info,setInfo]     = useState(null);
-  const [room,setRoom]     = useState(null);
+// ─── 스카우트 애니메이션 ──────────────────────────────────────
+function ScoutAnim({card, toLabel, onDone}) {
+  const [phase,setPhase]=useState(0);
+  const top=getTopValue(card), bot=getBottomValue(card);
   useEffect(()=>{
-    if(!info?.roomId||info?.solo) return;
-    return subscribeToRoom(info.roomId, setRoom);
-  },[info?.roomId]);
+    const t1=setTimeout(()=>setPhase(1),500);
+    const t2=setTimeout(()=>onDone(),2200);
+    return()=>{clearTimeout(t1);clearTimeout(t2);};
+  },[]);
+  return (
+    <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:500}}>
+      <div style={{position:'absolute',left:'50%',top:'45%',
+        transform:phase===0?'translate(-50%,-50%) scale(1.15)':'translate(-50%,30%) scale(0.65)',
+        transition:'transform 0.5s cubic-bezier(0.4,0,0.2,1),opacity 0.5s',opacity:phase===0?1:0}}>
+        <CardFace top={top} bot={bot} w={58} h={86} fs={21}
+          border="2.5px solid #FFE066" shadow="0 0 28px rgba(255,224,102,0.9)"/>
+      </div>
+      {phase===1&&<div style={{position:'absolute',top:'36%',left:'50%',transform:'translate(-50%,-50%)',
+        background:'rgba(10,5,0,0.93)',color:'#FFE066',padding:'10px 22px',borderRadius:22,
+        fontSize:15,fontWeight:800,border:'2px solid rgba(255,224,102,0.45)',
+        boxShadow:'0 6px 24px rgba(0,0,0,0.6)',animation:'slideInRight 0.2s ease',
+        display:'flex',alignItems:'center',gap:8}}>
+        <CardFace top={top} bot={bot} w={32} h={48} fs={12} border="1px solid rgba(255,255,255,0.2)" shadow="none"/>
+        <span>{toLabel}가 획득!</span>
+      </div>}
+    </div>
+  );
+}
 
-  const handleEnter = data => {
+// ─── 앱 루트 ─────────────────────────────────────────────────
+export default function App() {
+  const [screen,setScreen]=useState('lobby');
+  const [info,setInfo]=useState(null);
+  const [room,setRoom]=useState(null);
+  useEffect(()=>{ if(!info?.roomId||info?.solo) return; return subscribeToRoom(info.roomId,setRoom); },[info?.roomId]);
+  const handleEnter=data=>{
     if(data.solo){
-      const pId = 'human_player';
-      const sp  = [
-        {id:pId,    name:data.playerName},
-        {id:'ai_1', name:'AI A'},
-        {id:'ai_2', name:'AI B'},
-        {id:'ai_3', name:'AI C'},
-      ];
-      const gs = initializeGame([pId,'ai_1','ai_2','ai_3']);
-      setInfo({solo:true, playerId:pId, gameState:gs, soloPlayers:sp});
+      const pId='human_player';
+      const sp=[{id:pId,name:data.playerName},{id:'ai_1',name:'AI A'},{id:'ai_2',name:'AI B'},{id:'ai_3',name:'AI C'}];
+      setInfo({solo:true,playerId:pId,gameState:initializeGame([pId,'ai_1','ai_2','ai_3']),soloPlayers:sp});
       setScreen('game');
-    } else {
-      setInfo(data);
-      setScreen('room');
-    }
+    } else { setInfo(data); setScreen('room'); }
   };
-  const leave = () => { setScreen('lobby'); setInfo(null); setRoom(null); };
-
+  const leave=()=>{setScreen('lobby');setInfo(null);setRoom(null);};
   if(screen==='lobby') return <Lobby onEnter={handleEnter}/>;
   if(screen==='room'&&info&&room){
     if(room.status==='playing'&&room.gameState)
@@ -1185,5 +1021,5 @@ export default function App() {
   }
   if(screen==='game'&&info?.solo)
     return <GameBoard playerId={info.playerId} gameState={info.gameState} soloPlayers={info.soloPlayers} solo={true} onLeave={leave}/>;
-  return <div style={{color:'rgba(255,255,255,0.4)', textAlign:'center', paddingTop:100}}>연결 중...</div>;
+  return <div style={{color:'rgba(255,255,255,0.4)',textAlign:'center',paddingTop:100}}>연결 중...</div>;
 }
