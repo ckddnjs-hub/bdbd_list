@@ -1,4 +1,3 @@
-
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, update, onValue, push, get, remove, serverTimestamp } from 'firebase/database';
 
@@ -12,6 +11,7 @@ const firebaseConfig = {
   messagingSenderId: "431988627614",
   appId: "1:431988627614:web:8b7b5971150290d100c38f",
 }
+
 
 const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
@@ -73,8 +73,8 @@ export async function sendEmoji(roomId, playerId, emoji, playerName) {
   await set(emojiRef, {
     playerId, playerName, emoji, ts: serverTimestamp()
   });
-  // 5초 후 자동 삭제
-  setTimeout(() => remove(emojiRef), 5000);
+  // 3초 후 자동 삭제
+  setTimeout(() => remove(emojiRef), 3000);
 }
 
 // 라운드 종료 확인 (다음 라운드 준비)
