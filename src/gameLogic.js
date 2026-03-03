@@ -120,13 +120,15 @@ export function applyPlay(state, playerId, indices) {
   }};
 }
 
-export function applyScout(state, playerId, fieldIndex, insertIndex) {
+export function applyScout(state, playerId, fieldIndex, insertIndex, shouldFlip = false) {
   if (!state.field) return { error: '마당 패가 없습니다.' };
   const isEdge = fieldIndex === 0 || fieldIndex === state.field.cards.length - 1;
   if (!isEdge) return { error: '양끝 카드만 가져올 수 있습니다.' };
 
   const fc = state.field.cards[fieldIndex];
-  const newCard = { id: fc.cardId, top: fc.top, bottom: fc.bottom, flipped: fc.flipped };
+  // shouldFlip: 사용자가 뒤집어서 가져오기를 선택한 경우 flipped 상태 반전
+  const newFlipped = shouldFlip ? !fc.flipped : fc.flipped;
+  const newCard = { id: fc.cardId, top: fc.top, bottom: fc.bottom, flipped: newFlipped };
   const hand = [...state.hands[playerId]];
   hand.splice(Math.min(Math.max(0, insertIndex), hand.length), 0, newCard);
 
