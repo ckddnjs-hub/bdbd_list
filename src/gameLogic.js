@@ -20,16 +20,16 @@ export function shuffleDeck(deck) {
   return d;
 }
 
-export function getTopValue(card) { return card.flipped ? card.bottom : card.top; }
+export function getTopValue(card)    { return card.flipped ? card.bottom : card.top; }
 export function getBottomValue(card) { return card.flipped ? card.top : card.bottom; }
 
 export function isValidCombination(cards) {
   if (!cards || cards.length === 0) return false;
   if (cards.length === 1) return true;
-  const values = cards.map(getTopValue);
-  if (values.every(v => v === values[0])) return true;
-  const asc = values.every((v, i) => i === 0 || v === values[i-1] + 1);
-  const desc = values.every((v, i) => i === 0 || v === values[i-1] - 1);
+  const vals = cards.map(getTopValue);
+  if (vals.every(v => v === vals[0])) return true;
+  const asc  = vals.every((v, i) => i === 0 || v === vals[i-1] + 1);
+  const desc = vals.every((v, i) => i === 0 || v === vals[i-1] - 1);
   return asc || desc;
 }
 
@@ -55,17 +55,34 @@ export function isStrongerThan(newCards, fieldCards) {
   return false;
 }
 
+// 1/2 카드를 가진 플레이어 찾기 (첫 선패 결정)
+function findFirstPlayer(players, hands) {
+  // 1/2 카드(top=1,bottom=2 또는 flipped)를 가진 플레이어 우선
+  for (let i = 0; i < players.length; i++) {
+    const hand = hands[players[i]];
+    const has12 = hand.some(c =>
+      (c.top === 1 && c.bottom === 2) || (c.top === 2 && c.bottom === 1)
+    );
+    if (has12) return i;
+  }
+  return 0; // 없으면 첫 번째 플레이어
+}
+
 export function initializeGame(players) {
   const deck = shuffleDeck(createDeck());
   const count = players.length;
-  const perPlayer = { 3: 12, 4: 11, 5: 9 }[count] || 9;
+  const perPlayer = { 3:12, 4:11, 5:9 }[count] || 9;
   const hands = {};
   players.forEach((pid, i) => {
     hands[pid] = deck.slice(i * perPlayer, (i+1) * perPlayer);
   });
+
+  // 첫 선패: 1/2 카드 보유자
+  const firstIdx = findFirstPlayer(players, hands);
+
   return {
     status: 'playing',
-    currentPlayerIndex: 0,
+    currentPlayerIndex: firstIdx,
     players,
     hands,
     field: null,
@@ -75,8 +92,9 @@ export function initializeGame(players) {
     round: 1,
     doubleActionUsed: Object.fromEntries(players.map(p => [p, false])),
     handFlipped: Object.fromEntries(players.map(p => [p, false])),
-    consecutiveScouts: 0,
-    lastPlayerId: null,
+    // 연속 스카우트 추적: 마당 패 주인을 제외한 나머지가 모두 스카우트했는지 감지
+    lastFieldPlayerId: null,  // 마지막으로 플레이한 플레이어
+    scoutedSinceLastPlay: [], // 마지막 플레이 이후 스카우트한 플레이어 목록
   };
 }
 
@@ -85,49 +103,90 @@ export function applyPlay(state, playerId, indices) {
   const selected = indices.map(i => hand[i]);
   if (!isConnectedInHand(hand, indices)) return { error: '연결된 카드만 선택 가능합니다.' };
   if (!isValidCombination(selected)) return { error: '유효하지 않은 조합입니다.' };
-  const combo = selected.map(c => ({ cardId: c.id, value: getTopValue(c), top: c.top, bottom: c.bottom, flipped: c.flipped }));
-  if (state.field && !isStrongerThan(selected, state.field.cards)) return { error: '마당 패보다 강한 조합이어야 합니다.' };
-  const sorted = [...indices].sort((a,b) => b-a);
-  sorted.forEach(i => hand.splice(i, 1));
+  const combo = selected.map(c => ({
+    cardId: c.id, value: getTopValue(c), top: c.top, bottom: c.bottom, flipped: c.flipped
+  }));
+  if (state.field && !isStrongerThan(selected, state.field.cards))
+    return { error: '마당 패보다 강한 조합이어야 합니다.' };
+  [...indices].sort((a,b)=>b-a).forEach(i => hand.splice(i,1));
   const next = (state.currentPlayerIndex + 1) % state.players.length;
-  return { state: { ...state, hands: { ...state.hands, [playerId]: hand }, field: { cards: combo, ownerId: playerId }, currentPlayerIndex: next, consecutiveScouts: 0, lastPlayerId: playerId } };
+  return { state: {
+    ...state,
+    hands: { ...state.hands, [playerId]: hand },
+    field: { cards: combo, ownerId: playerId },
+    currentPlayerIndex: next,
+    lastFieldPlayerId: playerId,
+    scoutedSinceLastPlay: [], // 플레이하면 초기화
+  }};
 }
 
 export function applyScout(state, playerId, fieldIndex, insertIndex) {
   if (!state.field) return { error: '마당 패가 없습니다.' };
   const isEdge = fieldIndex === 0 || fieldIndex === state.field.cards.length - 1;
   if (!isEdge) return { error: '양끝 카드만 가져올 수 있습니다.' };
+
   const fc = state.field.cards[fieldIndex];
   const newCard = { id: fc.cardId, top: fc.top, bottom: fc.bottom, flipped: fc.flipped };
   const hand = [...state.hands[playerId]];
-  const safeInsert = Math.min(Math.max(0, insertIndex), hand.length);
-  hand.splice(safeInsert, 0, newCard);
+  hand.splice(Math.min(Math.max(0, insertIndex), hand.length), 0, newCard);
+
   const newFieldCards = state.field.cards.filter((_, i) => i !== fieldIndex);
   let tokens = state.tokens;
   const scores = { ...state.scores };
   if (tokens > 0) { tokens--; scores[state.field.ownerId] = (scores[state.field.ownerId] || 0) + 1; }
+
   const next = (state.currentPlayerIndex + 1) % state.players.length;
-  const consec = state.consecutiveScouts + 1;
-  return { state: { ...state, hands: { ...state.hands, [playerId]: hand }, field: newFieldCards.length > 0 ? { ...state.field, cards: newFieldCards } : state.field, scores, tokens, currentPlayerIndex: next, consecutiveScouts: consec } };
+  const scoutedSinceLastPlay = [...(state.scoutedSinceLastPlay||[])];
+  if (!scoutedSinceLastPlay.includes(playerId)) scoutedSinceLastPlay.push(playerId);
+
+  return { state: {
+    ...state,
+    hands: { ...state.hands, [playerId]: hand },
+    field: newFieldCards.length > 0 ? { ...state.field, cards: newFieldCards } : state.field,
+    scores,
+    tokens,
+    currentPlayerIndex: next,
+    scoutedSinceLastPlay,
+  }};
 }
 
 export function flipEntireHand(hand) {
   return [...hand].reverse().map(c => ({ ...c, flipped: !c.flipped }));
 }
 
+// ── 라운드 종료 조건 ──
+// i.  누군가 손패가 0장
+// ii. 마당 패 주인 제외 모든 플레이어가 스카우트만 함
 export function checkRoundEnd(state) {
-  for (const pid of state.players)
-    if (state.hands[pid].length === 0) return { ended: true, winnerId: pid };
-  if (state.field && state.consecutiveScouts >= state.players.length - 1 && state.lastPlayerId)
-    return { ended: true, winnerId: state.lastPlayerId };
+  // 조건 i: 손패 0장
+  for (const pid of state.players) {
+    if ((state.hands[pid]?.length ?? 99) === 0) {
+      return { ended: true, winnerId: pid };
+    }
+  }
+
+  // 조건 ii: 마당 패가 있고, 마당 패 주인 외 모든 플레이어가 스카우트함
+  if (state.field && state.lastFieldPlayerId) {
+    const others = state.players.filter(p => p !== state.lastFieldPlayerId);
+    const allScouted = others.length > 0 && others.every(p => state.scoutedSinceLastPlay?.includes(p));
+    if (allScouted) {
+      return { ended: true, winnerId: state.lastFieldPlayerId };
+    }
+  }
+
   return { ended: false };
 }
 
 export function calculateRoundScore(state, winnerId) {
   const scores = {};
   state.players.forEach(pid => {
-    if (pid === winnerId) scores[pid] = state.scores[pid] || 0;
-    else scores[pid] = (state.scores[pid] || 0) - state.hands[pid].length;
+    if (pid === winnerId) {
+      scores[pid] = state.scores[pid] || 0;
+    } else {
+      const tokens = state.scores[pid] || 0;
+      const handSize = state.hands[pid]?.length || 0;
+      scores[pid] = tokens - handSize;
+    }
   });
   return scores;
 }
@@ -135,43 +194,38 @@ export function calculateRoundScore(state, winnerId) {
 // ============================================================
 // AI 로직
 // ============================================================
-
 export function getAIAction(state, aiId) {
   const hand = state.hands[aiId];
   if (!hand || hand.length === 0) return null;
 
-  // 1) 낼 수 있는 조합 찾기
+  // 낼 수 있는 최선의 조합 찾기
   const bestPlay = findBestPlay(hand, state.field);
   if (bestPlay) return { type: 'play', indices: bestPlay };
 
-  // 2) 마당 패가 있고 내 것이 아니면 스카우트
-  if (state.field && state.field.ownerId !== aiId) {
+  // 스카우트 가능하면 스카우트
+  if (state.field && state.field.ownerId !== aiId && state.field.cards.length > 0) {
     const fieldCards = state.field.cards;
-    // 더 유용한 끝 카드 선택
     const firstVal = fieldCards[0].value;
-    const lastVal = fieldCards[fieldCards.length - 1].value;
-    const fieldIndex = firstVal >= lastVal ? 0 : fieldCards.length - 1;
-    const insertIndex = hand.length; // 끝에 삽입
-    return { type: 'scout', fieldIndex, insertIndex };
+    const lastVal  = fieldCards[fieldCards.length - 1].value;
+    // 더 큰 숫자 가져오기
+    const fieldIndex = lastVal >= firstVal ? fieldCards.length - 1 : 0;
+    return { type: 'scout', fieldIndex, insertIndex: hand.length };
   }
 
-  // 3) 마당 패 없으면 아무 단일 카드 플레이
+  // 마당 패 없으면 단일 카드 플레이
   return { type: 'play', indices: [0] };
 }
 
 function findBestPlay(hand, field) {
   const fieldCards = field?.cards || null;
-  let bestIndices = null;
-  let bestStrength = -1;
+  let bestIndices = null, bestStrength = -1;
 
-  // 모든 연속 구간 탐색
   for (let start = 0; start < hand.length; start++) {
     for (let end = start; end < hand.length; end++) {
-      const indices = Array.from({ length: end - start + 1 }, (_, i) => start + i);
-      const cards = indices.map(i => hand[i]);
+      const indices = Array.from({ length: end-start+1 }, (_,i) => start+i);
+      const cards   = indices.map(i => hand[i]);
       if (!isValidCombination(cards)) continue;
       if (fieldCards && !isStrongerThan(cards, fieldCards)) continue;
-      // 더 많은 카드를 내는 게 좋음
       const strength = cards.length * 10 + Math.min(...cards.map(getTopValue));
       if (strength > bestStrength) { bestStrength = strength; bestIndices = indices; }
     }
