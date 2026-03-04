@@ -165,16 +165,21 @@ export function flipEntireHand(hand) {
 }
 
 export function checkRoundEnd(state) {
+  // 1) 손패 소진
   for (const pid of state.players) {
     if ((state.hands[pid]?.length ?? 99) === 0) {
       return { ended: true, winnerId: pid };
     }
   }
-  if (state.field && state.lastFieldPlayerId) {
+  // 2) 마당패가 있고, 마지막 플레이어 이외 전원이 스카우트한 경우
+  // 반드시 field가 null이 아니어야 함 (스카우트로 마당패가 사라진 경우는 해당 없음)
+  if (state.field && state.field.cards && state.field.cards.length > 0 && state.lastFieldPlayerId) {
     const others = state.players.filter(p => p !== state.lastFieldPlayerId);
-    const allScouted = others.length > 0 && others.every(p => state.scoutedSinceLastPlay?.includes(p));
-    if (allScouted) {
-      return { ended: true, winnerId: state.lastFieldPlayerId };
+    if (others.length > 0) {
+      const allScouted = others.every(p => state.scoutedSinceLastPlay?.includes(p));
+      if (allScouted) {
+        return { ended: true, winnerId: state.lastFieldPlayerId };
+      }
     }
   }
   return { ended: false };
