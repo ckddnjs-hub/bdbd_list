@@ -819,36 +819,60 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           <p style={{color:'rgba(255,255,255,0.45)',fontSize:12,textAlign:'center',marginBottom:16}}>
             뒤집기 여부 선택 후 <strong style={{color:'#FFE066'}}>확인</strong> 을 눌러야 진행됩니다
           </p>
-          {[['현재 손패',myHand],['뒤집으면',flipped]].map(([label,cards])=>{
+          {[
+            {label:'현재 손패', cards:myHand,   isFlip:false},
+            {label:'뒤집으면',  cards:flipped, isFlip:true},
+          ].map(({label,cards,isFlip})=>{
             const n=cards.length;
-            const SW=36, step=SW*0.52;
+            const SW=34, step=SW*0.5;
             const totalW=step*(n-1)+SW;
             const mid=(n-1)/2;
-            const containerW=Math.min(window.innerWidth-80, 480);
-            const startX=totalW<containerW?Math.max(0,(containerW-totalW)/2):0;
+            const chosen = isFlip ? flipChoice===true : flipChoice===false;
             return (
-              <div key={label} style={{marginBottom:14}}>
-                <p style={{fontSize:10,color:'rgba(255,255,255,0.35)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>{label}</p>
-                <div style={{position:'relative',height:72,overflow:'visible',minWidth:totalW+SW}}>
-                  {cards.map((c,i)=>{
-                    const rot=(i-mid)*3;
-                    const liftY=Math.abs(i-mid)*2;
-                    const top=getTopValue(c),bot=getBottomValue(c);
-                    return <div key={c.id+(label==='뒤집으면'?'f':'')}
-                      style={{position:'absolute',left:startX+i*step,bottom:liftY,zIndex:i,
-                        transform:`rotate(${rot}deg)`,transformOrigin:'bottom center'}}>
-                      <CardFace top={top} bot={bot} w={SW} h={54} fs={12}
-                        border="1.5px solid rgba(255,255,255,0.2)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>
-                    </div>;
-                  })}
+              <div key={label} style={{
+                marginBottom:12,
+                border:`2px solid ${chosen?'#FFE066':'rgba(255,255,255,0.08)'}`,
+                borderRadius:14,
+                padding:'10px 12px',
+                background:chosen?'rgba(255,224,102,0.07)':'rgba(255,255,255,0.03)',
+                transition:'all 0.15s',
+              }}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  {/* 카드 팬 */}
+                  <div style={{flex:1,position:'relative',height:66,overflow:'visible'}}>
+                    {cards.map((c,i)=>{
+                      const rot=(i-mid)*3, liftY=Math.abs(i-mid)*2;
+                      const top=getTopValue(c),bot=getBottomValue(c);
+                      return <div key={c.id+(isFlip?'f':'')+i}
+                        style={{position:'absolute',left:i*step,bottom:liftY,zIndex:i,
+                          transform:`rotate(${rot}deg)`,transformOrigin:'bottom center'}}>
+                        <CardFace top={top} bot={bot} w={SW} h={50} fs={11}
+                          border="1.5px solid rgba(255,255,255,0.2)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>
+                      </div>;
+                    })}
+                  </div>
+                  {/* 선택 버튼 — 카드 오른쪽 */}
+                  <button
+                    onClick={()=>setFC(isFlip?true:false)}
+                    style={{
+                      flexShrink:0,
+                      width:72, height:54,
+                      borderRadius:12,
+                      border:`2px solid ${chosen?(isFlip?'#E8192C':'#00DC96'):'rgba(255,255,255,0.2)'}`,
+                      background:chosen?(isFlip?'#E8192C':'#00DC96'):'rgba(255,255,255,0.08)',
+                      color:chosen?'#fff':'rgba(255,255,255,0.6)',
+                      fontFamily:'Nunito,sans-serif', fontWeight:800, fontSize:12,
+                      cursor:'pointer', transition:'all 0.15s',
+                      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2,
+                    }}>
+                    <span style={{fontSize:16}}>{isFlip?'↕':'✓'}</span>
+                    <span>{isFlip?'뒤집기':'그대로'}</span>
+                    {chosen&&<span style={{fontSize:10}}>선택됨</span>}
+                  </button>
                 </div>
               </div>
             );
           })}
-          <div style={{display:'flex',gap:9,marginTop:8}}>
-            <button onClick={()=>setFC(false)} style={{...lBtn(flipChoice===false?'#00DC96':'rgba(255,255,255,0.09)','12px',13,flipChoice===false?'#0a1a0a':'#fff'),flex:1,border:`2px solid ${flipChoice===false?'#00DC96':'rgba(255,255,255,0.18)'}`}}>그대로{flipChoice===false?' ✓':''}</button>
-            <button onClick={()=>setFC(true)}  style={{...lBtn(flipChoice===true?'#E8192C':'rgba(255,255,255,0.09)','12px',13,'#fff'),flex:1,border:`2px solid ${flipChoice===true?'#E8192C':'rgba(255,255,255,0.18)'}`}}>↕ 뒤집기{flipChoice===true?' ✓':''}</button>
-          </div>
           <button onClick={handleFlipConfirm} disabled={flipChoice===null}
             style={{...lBtn(flipChoice!==null?'#FFE066':'#333','13px',15,flipChoice!==null?'#1a1a1a':'rgba(255,255,255,0.2)'),width:'100%',marginTop:10,boxShadow:flipChoice!==null?'0 4px 18px rgba(255,224,102,0.5)':'none',transition:'all 0.2s'}}>
             {flipChoice===null?'먼저 위에서 선택해주세요':'✓ 확인 — 게임 시작!'}
@@ -1074,6 +1098,9 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                       const isSel=selected.includes(idx);
                       const rot=(idx-mid)*2.5;
                       const liftBase=Math.abs(idx-mid)*1.5;
+                      // 선택 시 z-index를 자기 위치 기준으로 올리되, 오른쪽 카드보다는 낮게
+                      // n=10이면 최대 idx=9. 선택 시 idx+0.5로 설정 → 오른쪽 카드(idx+1)보다 낮음
+                      const zIdx = isSel ? idx + 0.5 : idx;
                       return (
                         <div key={c.id||idx}
                           onClick={()=>toggleSelect(idx)}
@@ -1084,7 +1111,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                             transform:`rotate(${rot}deg) translateY(${isSel?-20:0}px)`,
                             transformOrigin:'bottom center',
                             transition:'transform 0.15s cubic-bezier(0.34,1.4,0.64,1)',
-                            zIndex:idx,
+                            zIndex:zIdx,
                             cursor:isMyTurn&&(mode==='play'||doublePhase==='scouted')?'pointer':'default',
                           }}>
                           <CardFace top={getTopValue(c)} bot={getBottomValue(c)} w={CARD_W} h={CARD_H} fs={CARD_FS}
