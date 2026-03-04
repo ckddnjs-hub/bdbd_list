@@ -342,6 +342,8 @@ function EmojiPanel({onSend}) {
 function RoundEndScreen({gs, roundEnd, players, getName, playerId, solo, onConfirm}) {
   const [confirmed,setConfirmed]=useState(false);
   const sorted=[...gs.players].sort((a,b)=>(roundEnd.tot[b]||0)-(roundEnd.tot[a]||0));
+  // 라운드 점수 기준 내림차순으로 플레이어 카드 표시
+  const playersByRoundScore=[...gs.players].sort((a,b)=>(roundEnd.sc[b]||0)-(roundEnd.sc[a]||0));
   const totalRounds = gs.players.length;
   const isLastRound = (gs.round||1) >= totalRounds;
   return (
@@ -354,8 +356,9 @@ function RoundEndScreen({gs, roundEnd, players, getName, playerId, solo, onConfi
           </h2>
           <p style={{color:'#FFE066',fontWeight:800,fontSize:17}}>{getName(roundEnd.wid)} 승리!</p>
         </div>
-        {gs.players.map((pid,pi)=>{
-          const isW=pid===roundEnd.wid, pColor=PC[pi%PC.length];
+        {playersByRoundScore.map((pid)=>{
+          const origPi=gs.players.indexOf(pid);
+          const isW=pid===roundEnd.wid, pColor=PC[origPi%PC.length];
           // roundEnd.hands: finishRound 당시 스냅샷 (gs.hands는 이후 변할 수 있음)
           const hand=(roundEnd.hands||gs.hands)?.[pid]||[];
           const tokens=gs.scores?.[pid]||0;
@@ -890,12 +893,30 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
 
   const handleFlipConfirm=async()=>{
     if(flipChoice===null) return;
-    if(flipChoice){
-      const ngs={...gs,hands:{...gs.hands,[playerId]:flipEntireHand(myHand)},handFlipped:{...gs.handFlipped,[playerId]:true}};
-      await persist(ngs); showMsg('↕ 손패 뒤집기!');
+    // 내 선택 적용
+    let ngs = flipChoice
+      ? {...gs,hands:{...gs.hands,[playerId]:flipEntireHand(myHand)},handFlipped:{...gs.handFlipped,[playerId]:true}}
+      : {...gs};
+    // flipReady에 내 완료 기록
+    ngs = {...ngs, flipReady:{...(ngs.flipReady||{}),[playerId]:true}};
+    await persist(ngs);
+    setFC(null);
+    // 전원 완료 여부 체크
+    const allDone = gs.players.every(pid=> pid===playerId || (ngs.flipReady?.[pid]));
+    if(allDone || solo){
+      setMode('play');
+    } else {
+      setMode('wait_flip'); // 대기 화면
     }
-    setFC(null); setMode('play');
   };
+
+  // 다른 플레이어 flip 완료 감지 (Firebase)
+  useEffect(()=>{
+    if(solo||mode!=='wait_flip') return;
+    if(!gs||!gs.flipReady) return;
+    const allDone = gs.players.every(pid=>gs.flipReady[pid]);
+    if(allDone) setMode('play');
+  },[gs?.flipReady, mode, solo]);
 
   const handlePlay=async()=>{
     if(!isMyTurn||selected.length===0) return;
@@ -993,7 +1014,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   };
 
   const handleNextRound=async()=>{
-    const ngs={...initializeGame(gs.players),round:(gs.round||1)+1,totalScores:roundEnd.tot,turnTimeout:gs.turnTimeout};
+    const ngs={...initializeGame(gs.players),round:(gs.round||1)+1,totalScores:roundEnd.tot,turnTimeout:gs.turnTimeout,flipReady:{}};
     setRE(null);setSel([]);setMode('flip_choice');setSIdx(null);
     setIM(false);setDP(null);setFC(null);setRR({});
     if(!solo)await clearRoundReady(roomId);
@@ -1078,6 +1099,46 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
             style={{...lBtn(flipChoice!==null?'#FFE066':'#333','13px',15,flipChoice!==null?'#1a1a1a':'rgba(255,255,255,0.2)'),width:'100%',marginTop:10,boxShadow:flipChoice!==null?'0 4px 18px rgba(255,224,102,0.5)':'none',transition:'all 0.2s'}}>
             {flipChoice===null?'먼저 위에서 선택해주세요':'✓ 확인 — 게임 시작!'}
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 뒤집기 대기 화면 (내가 확인 눌렀고 다른 플레이어 대기 중) ──
+  if(mode==='wait_flip'){
+    const flipReady = gs.flipReady||{};
+    const totalP = gs.players.length;
+    const doneCount = gs.players.filter(pid=>flipReady[pid]).length;
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.92)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,backdropFilter:'blur(16px)',padding:16}}>
+        <div style={{background:'rgba(20,10,0,0.97)',border:'1px solid rgba(255,200,80,0.25)',borderRadius:20,width:'100%',maxWidth:400,padding:'28px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.8)',textAlign:'center'}}>
+          <div style={{fontSize:36,marginBottom:14}}>⏳</div>
+          <h2 style={{color:'#FFE066',fontSize:18,fontWeight:900,marginBottom:8}}>선택 완료!</h2>
+          <p style={{color:'rgba(255,255,255,0.55)',fontSize:13,marginBottom:20}}>다른 플레이어의 뒤집기 선택을 기다리는 중...</p>
+          {/* 플레이어별 완료 현황 */}
+          <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:20}}>
+            {gs.players.map((pid,pi)=>{
+              const done = !!flipReady[pid];
+              const pColor = PC[pi%PC.length];
+              const pName = players.find(p=>p.id===pid)?.name||pid;
+              return (
+                <div key={pid} style={{
+                  display:'flex',alignItems:'center',gap:10,
+                  background: done?'rgba(0,220,150,0.08)':'rgba(255,255,255,0.04)',
+                  border:`1.5px solid ${done?'rgba(0,220,150,0.4)':'rgba(255,255,255,0.1)'}`,
+                  borderRadius:10,padding:'8px 14px',
+                  transition:'all 0.3s',
+                }}>
+                  <div style={{width:28,height:28,borderRadius:'50%',background:pColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>{getAvatar(pid)}</div>
+                  <span style={{flex:1,fontWeight:700,fontSize:13,color:done?'#00DC96':'rgba(255,255,255,0.5)',textAlign:'left'}}>{pName}{pid===playerId?' (나)':''}</span>
+                  <span style={{fontSize:16}}>{done?'✅':'⌛'}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{fontSize:12,color:'rgba(255,255,255,0.3)'}}>
+            {doneCount} / {totalP} 완료
+          </div>
         </div>
       </div>
     );
