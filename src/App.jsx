@@ -562,6 +562,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   const [scoutIdx,setSIdx] = useState(null);
   const [insertMode,setIM] = useState(false);
   const [actionNotice,setAN]= useState(null);
+  const [ghostField,setGF] = useState(null); // 멀티 스카우트: 강조용 이전 마당패 오버레이
   const [fieldHighlight,setFH]= useState(null); // 스카우트 강조: {cardId}
   const [pendingPlay,setPP]  = useState(null);  // 플레이 예고: {cards,actorId,actorIndex}
   const [showHelp,setSH]   = useState(false);
@@ -604,16 +605,32 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
             // 플레이 감지: field 주인이 actorId로 바뀜
             if(newGs.field?.ownerId===actorId&&newGs.field?.cards?.length>0){
               const cards=newGs.field.cards.map(fc=>({top:fc.value??fc.top,bottom:fc.bottom??fc.top,flipped:fc.flipped??false,id:fc.cardId}));
-              showAction('play', actorId, cards, null);
+              showAction('play', actorId, cards, null, null);
+              prevGsRef.current=newGs;
+              setGs(newGs);
             }
-            // 스카우트 감지
+            // 스카우트 감지: gs 업데이트를 2초 딜레이 (강조 동안 카드 마당에 유지)
             else if(!newGs.field||(prev.field&&newGs.field&&newGs.field.cards?.length<prev.field.cards?.length)){
               const scouted=prev.field?.cards?.find(fc=>!newGs.field?.cards?.find(nc=>nc.cardId===fc.cardId));
               if(scouted){
                 const card={top:scouted.flipped?scouted.bottom:scouted.top,bottom:scouted.flipped?scouted.top:scouted.bottom,flipped:false,id:scouted.cardId};
-                showAction('scout', actorId, [card], scouted.cardId);
+                // ghostField: prev 마당패를 보여주면서 강조 (gs는 아직 업데이트 안 함)
+                setGF(prev.field);
+                showAction('scout', actorId, [card], scouted.cardId, ()=>{
+                  // 강조 2초 후 gs 업데이트 → 카드 사라짐
+                  setGF(null);
+                  prevGsRef.current=newGs;
+                  setGs(newGs);
+                });
+                return; // setGs(newGs) 건너뜀
               }
+              prevGsRef.current=newGs;
+              setGs(newGs);
+            } else {
+              prevGsRef.current=newGs;
+              setGs(newGs);
             }
+            return;
           }
         }
         prevGsRef.current=newGs;
@@ -628,20 +645,20 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
     });
   },[roomId,solo]);
 
-  const showAction=(type, actorId, cards, scoutedCardId)=>{
+  const showAction=(type, actorId, cards, scoutedCardId, onAfterHighlight)=>{
     const actorName = players.find(p=>p.id===actorId)?.name || actorId;
     clearTimeout(noticeTimer.current);
     if(type==='scout'){
-      // 1) 마당패 카드 노란 테두리 강조 2초
+      // 1) 마당패 카드 강조 2초 (gs 업데이트는 caller가 딜레이)
       if(scoutedCardId) setFH({cardId:scoutedCardId});
       noticeTimer.current=setTimeout(()=>{
         setFH(null);
+        if(onAfterHighlight) onAfterHighlight(); // gs 업데이트 콜백
         // 2) 팝업 표시 3초
         setAN({type:'scout', name:actorName, cards, actorId});
         noticeTimer.current=setTimeout(()=>setAN(null), 3000);
       }, 2000);
     } else {
-      // play: 1) 팝업 표시 3초 → 자연스럽게 사라짐 (마당패는 이미 gs에 반영됨)
       setAN({type:'play', name:actorName, cards, actorId});
       noticeTimer.current=setTimeout(()=>setAN(null), 3000);
     }
@@ -721,15 +738,26 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         ? action.indices.map(i=>({...gs.hands[cur][i]}))
         : [fc].filter(Boolean).map(c=>({top:c.flipped?c.bottom:c.top,bottom:c.flipped?c.top:c.bottom,flipped:false,id:c.cardId}));
       const scoutedCardId = action.type==='scout' ? fc?.cardId : null;
-      showAction(action.type, cur, noticeCards, scoutedCardId);
-      const showDelay = action.type==='scout' ? 2000+3000 : 3000; // scout: 2s highlight + 3s popup, play: 3s popup
       const ngs=result.state;
-      setTimeout(()=>{
-        const end=checkRoundEnd(ngs);
-        if(end.ended){finishRound(ngs,end.winnerId);setAIT(false);return;}
-        setGs(ngs); if(!solo)saveGameState(roomId,ngs);
-        setAIT(false);
-      }, showDelay);
+
+      if(action.type==='scout'){
+        // 스카우트: 강조 2초 (카드 마당에 유지) → gs 업데이트 → 팝업 3초
+        showAction('scout', cur, noticeCards, scoutedCardId, ()=>{
+          const end=checkRoundEnd(ngs);
+          if(end.ended){finishRound(ngs,end.winnerId);setAIT(false);return;}
+          setGs(ngs); if(!solo)saveGameState(roomId,ngs);
+          setTimeout(()=>setAIT(false), 3000); // 팝업 3초 후 AI thinking 종료
+        });
+      } else {
+        // 플레이: 팝업 3초 표시 후 gs 업데이트
+        showAction('play', cur, noticeCards, null, null);
+        setTimeout(()=>{
+          const end=checkRoundEnd(ngs);
+          if(end.ended){finishRound(ngs,end.winnerId);setAIT(false);return;}
+          setGs(ngs); if(!solo)saveGameState(roomId,ngs);
+          setAIT(false);
+        }, 3000);
+      }
     },AI_THINK);
     return()=>clearTimeout(timerRef.current);
   },[gs?.currentPlayerIndex,roundEnd]);
@@ -778,6 +806,9 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
 
   const handleSelectField=(fi,shouldFlip)=>{
     if(!isMyTurn||(mode!=='scout'&&mode!=='double')||insertMode) return;
+    // 내 스카우트: 선택한 카드를 highlight 유지하며 삽입 모드 진입
+    const fc = gs.field?.cards[fi];
+    if(fc) setFH({cardId: fc.cardId});
     setSIdx({fi,shouldFlip,isDouble:mode==='double'}); setIM(true);
   };
 
@@ -789,7 +820,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
       if(!fc){showMsg('❌ 카드 없음');setIM(false);setSIdx(null);return;}
       const r=applyScout(gs,playerId,fi,insertIdx,shouldFlip);
       if(r.error){showMsg('❌ '+r.error);setIM(false);setSIdx(null);return;}
-      setSIdx(null);setIM(false);
+      setSIdx(null);setIM(false);setFH(null);
       const animTop=shouldFlip?(fc.flipped?fc.top:fc.bottom):(fc.flipped?fc.bottom:fc.top);
       const animBot=shouldFlip?(fc.flipped?fc.bottom:fc.top):(fc.flipped?fc.top:fc.bottom);
       setSA({card:{top:animTop,bottom:animBot,flipped:false},toLabel:getName(playerId)});
@@ -797,12 +828,12 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         const myIdx2=r.state.players.indexOf(playerId);
         const sd={...r.state,currentPlayerIndex:myIdx2};
         setGs(sd); if(!solo)saveGameState(roomId,sd).catch(e=>console.error(e));
-        setDP('scouted'); setMode('play'); showMsg('⚡ 스카우트! 이제 플레이하세요.');
+        setDP('scouted'); setMode('play');
         return;
       }
       const end=checkRoundEnd(r.state);
       if(end.ended) return finishRound(r.state,end.winnerId);
-      await persist(r.state); setMode('play'); showMsg('✅ 스카우트!');
+      await persist(r.state); setMode('play');
     } catch(e) {
       console.error('handleInsert error',e);
       setSIdx(null); setIM(false); setDP(null); setMode('play');
@@ -810,7 +841,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
     }
   };
 
-  const cancelScout=()=>{setSIdx(null);setIM(false);if(doublePhase!=='scouted')setMode('play');};
+  const cancelScout=()=>{setSIdx(null);setIM(false);setFH(null);if(doublePhase!=='scouted')setMode('play');};
 
   const toggleSelect=idx=>{
     if(!isMyTurn||mode!=='play'||insertMode) return;
@@ -979,8 +1010,14 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
       <ActionNotice action={actionNotice} otherPlayers={otherPlayers} playerId={playerId}/>
 
       {/* ── 마당패 영역 (중앙 약간 위) ── */}
-      <div style={{position:'absolute',top:'40%',left:'50%',transform:'translate(-50%,-50%)',zIndex:5,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
-        {!gs.field?(
+      {(()=>{
+        // 강조 중엔 ghostField(이전 마당패)를 표시
+        const displayField = ghostField || gs.field;
+        const displayCards = displayField?.cards || [];
+        const dFieldTotalW = FIELD_W*0.58*(displayCards.length-1)+FIELD_W+16;
+        return (
+        <div style={{position:'absolute',top:'40%',left:'50%',transform:'translate(-50%,-50%)',zIndex:5,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
+        {!displayField?(
           <div style={{background:'rgba(0,0,0,0.3)',borderRadius:16,padding:'16px 24px',border:'2px dashed rgba(255,255,255,0.18)',backdropFilter:'blur(8px)',textAlign:'center'}}>
             <div style={{fontSize:22,marginBottom:4}}>🃏</div>
             <p style={{color:'rgba(255,255,255,0.45)',fontSize:13,fontWeight:600}}>마당 패 없음</p>
@@ -989,16 +1026,16 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         ):(
           <>
             <div style={{background:'rgba(0,0,0,0.45)',borderRadius:8,padding:'2px 11px',backdropFilter:'blur(6px)'}}>
-              <span style={{fontSize:11,color:'#FFE066',fontWeight:700}}>{getName(gs.field.ownerId)}의 마당 ({fieldCards.length}장)</span>
+              <span style={{fontSize:11,color:'#FFE066',fontWeight:700}}>{getName(displayField.ownerId)}의 마당 ({displayCards.length}장)</span>
             </div>
-            <div style={{position:'relative',height:100,width:Math.max(fieldTotalW,80)}}>
-              {fieldCards.map((fc,idx)=>{
-                const isEdge=idx===0||idx===fieldCards.length-1;
+            <div style={{position:'relative',height:100,width:Math.max(dFieldTotalW,80)}}>
+              {displayCards.map((fc,idx)=>{
+                const isEdge=idx===0||idx===displayCards.length-1;
                 const isHighlighted = fieldHighlight && fc.cardId===fieldHighlight.cardId;
                 return (
                   <FieldCard key={idx} fc={fc}
-                    scoutable={scoutModeActive&&isEdge}
-                    left={idx*fieldStep} zIndex={idx} totalCards={fieldCards.length}
+                    scoutable={!ghostField&&scoutModeActive&&isEdge}
+                    left={idx*fieldStep} zIndex={idx} totalCards={displayCards.length}
                     isOpen={openFieldIdx===idx}
                     onOpen={()=>setOFI(prev=>prev===idx?null:idx)}
                     onScout={sf=>{handleSelectField(idx,sf);setOFI(null);}}
@@ -1006,15 +1043,17 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                 );
               })}
             </div>
-            {scoutModeActive&&!insertMode&&<div style={{background:'rgba(255,224,102,0.1)',borderRadius:8,padding:'3px 10px',border:'1px solid rgba(255,224,102,0.3)'}}>
+            {!ghostField&&scoutModeActive&&!insertMode&&<div style={{background:'rgba(255,224,102,0.1)',borderRadius:8,padding:'3px 10px',border:'1px solid rgba(255,224,102,0.3)'}}>
               <p style={{fontSize:10,color:'#FFE066',textAlign:'center'}}>← 양끝 카드 클릭 후 가져오기 →</p>
             </div>}
-            {insertMode&&<div style={{background:'rgba(0,220,150,0.1)',borderRadius:8,padding:'3px 10px',border:'1px solid rgba(0,220,150,0.3)'}}>
+            {!ghostField&&insertMode&&<div style={{background:'rgba(0,220,150,0.1)',borderRadius:8,padding:'3px 10px',border:'1px solid rgba(0,220,150,0.3)'}}>
               <p style={{fontSize:10,color:'#00DC96',textAlign:'center'}}>↓ 아래에서 삽입 위치 선택</p>
             </div>}
           </>
         )}
-      </div>
+        </div>
+        );
+      })()}
 
       {/* ── 스카우트 애니메이션 ── */}
       {scoutAnim&&<ScoutAnim card={scoutAnim.card} toLabel={scoutAnim.toLabel} onDone={()=>setSA(null)}/>}
