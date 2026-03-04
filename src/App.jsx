@@ -414,7 +414,7 @@ function Lobby({onEnter}) {
               ['[2장 연속]','1-2 < 2-3 < … < 9-10'],
               ['[2장 동일]','1-1 < 2-2 < … < 10-10'],
               ['[3장 연속]','1-2-3 < 2-3-4 < … < 8-9-10'],
-              ['참고','10-10 > 9-10 (동일2장 > 연속2장)'],
+              ['참고',' 9-10 < 1-1 (연속2장 > 동일2장)'],
             ]},
             {icon:'🏁',title:'라운드 종료 & 점수',items:[
               '종료: 손패 소진 OR 전원 스카우트 후 원래 차례 복귀',
@@ -827,7 +827,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           </div>
           <button onClick={handleFlipConfirm} disabled={flipChoice===null}
             style={{...lBtn(flipChoice!==null?'#FFE066':'#333','13px',15,flipChoice!==null?'#1a1a1a':'rgba(255,255,255,0.2)'),width:'100%',marginTop:10,boxShadow:flipChoice!==null?'0 4px 18px rgba(255,224,102,0.5)':'none',transition:'all 0.2s'}}>
-            {flipChoice===null?'먼저 위에서 선택해주세요':'✓ 확인 — 게임 시작!'}
+            {flipChoice===null?'먼저 위에서 선택해주세요':'✓ 게임 시작!'}
           </button>
         </div>
       </div>
