@@ -65,11 +65,11 @@ function CardFace({top,bot,w,h,fs,border,shadow,style={},onClick}) {
         }}>{top}</span>
         <div style={{position:'absolute',bottom:0,left:0,right:0,height:2,background:'rgba(0,0,0,0.15)'}}/>
       </div>
-      {/* 아래 절반: scale(-1,-1) 로 뒤집기 — rotate와 달리 박스 밖으로 안 나감 */}
+      {/* 아래 절반: 숫자를 오른쪽 하단에 두고 scale(-1,-1) → 뒤집어 보면 왼쪽 상단 */}
       <div style={{
         flex:1, background:cb.bg, color:cb.text,
-        display:'flex', alignItems:'flex-start', justifyContent:'flex-start',
-        padding:'3px 0 0 5px',
+        display:'flex', alignItems:'flex-end', justifyContent:'flex-end',
+        padding:'0 5px 3px 0',
         transform:'scale(-1,-1)',
       }}>
         <span style={{fontFamily:"'Helvetica Neue',Arial,sans-serif",fontSize:fs,fontWeight:500,lineHeight:1,userSelect:'none'}}>{bot}</span>
@@ -87,20 +87,26 @@ function SmallCard({card, dim=false}) {
 }
 
 // ─── 마당패 카드 ──────────────────────────────────────────────
-function FieldCard({fc, scoutable, onScout, left=0, zIndex=0, totalCards=1, isOpen, onOpen}) {
+function FieldCard({fc, scoutable, onScout, left=0, zIndex=0, totalCards=1, isOpen, onOpen, highlighted=false}) {
   const [flippedView,setFlippedView]=useState(false);
   const rawTop=fc.flipped?fc.bottom:fc.top, rawBot=fc.flipped?fc.top:fc.bottom;
   const dTop=flippedView?rawBot:rawTop, dBot=flippedView?rawTop:rawBot;
   const W=54,H=82,FS=20;
   const mid=(totalCards-1)/2, rot=(zIndex-mid)*2.5;
   const active=scoutable&&isOpen;
+  // highlighted: 스카우트 강조 — 위로 올라오며 노란 테두리
+  const liftY = highlighted ? -24 : (active ? -14 : 0);
   return (
-    <div style={{position:'absolute',left,bottom:0,zIndex:active?999:zIndex}}>
-      <div style={{transform:`rotate(${rot}deg) translateY(${active?-14:0}px)`,transformOrigin:'bottom center',transition:'transform 0.18s cubic-bezier(0.34,1.4,0.64,1)'}}>
+    <div style={{position:'absolute',left,bottom:0,zIndex:active?999:highlighted?500:zIndex}}>
+      <div style={{
+        transform:`rotate(${rot}deg) translateY(${liftY}px)`,
+        transformOrigin:'bottom center',
+        transition:'transform 0.4s cubic-bezier(0.34,1.4,0.64,1)',
+      }}>
         <CardFace top={dTop} bot={dBot} w={W} h={H} fs={FS}
           onClick={()=>{ if(scoutable) onOpen(); }}
-          border={scoutable?(active?'2.5px solid #FFE066':'2px solid rgba(255,224,102,0.5)'):'2px solid rgba(255,255,255,0.2)'}
-          shadow={active?'0 0 20px rgba(255,224,102,0.8),0 6px 20px rgba(0,0,0,0.7)':'0 3px 12px rgba(0,0,0,0.5)'}/>
+          border={highlighted?'2.5px solid #FFE066':(scoutable?(active?'2.5px solid #FFE066':'2px solid rgba(255,224,102,0.5)'):'2px solid rgba(255,255,255,0.2)')}
+          shadow={highlighted?'0 0 28px rgba(255,224,102,1), 0 0 10px rgba(255,200,0,0.9), 0 8px 24px rgba(0,0,0,0.7)':(active?'0 0 20px rgba(255,224,102,0.8),0 6px 20px rgba(0,0,0,0.7)':'0 3px 12px rgba(0,0,0,0.5)')}/>
       </div>
       {active&&(
         <div style={{position:'absolute',top:-68,left:'50%',transform:'translateX(-50%)',
@@ -193,26 +199,48 @@ function OpponentPanel({p, gs, players, isCur, emoji}) {
   );
 }
 
-// ─── 행동 알림 팝업 ───────────────────────────────────────────
-// 플레이/스카우트 모두 카드 이미지 표시, 2.8초 유지
-function ActionNotice({action}) {
+// ─── 행동 알림 팝업 (플레이어 패널 아래에 표시) ─────────────
+// action: {type, name, cards, actorIndex, panelCount}
+// panelLeft, panelWidth: 해당 플레이어 패널의 x 위치/너비
+function ActionNotice({action, otherPlayers, playerId}) {
   if(!action) return null;
+  const idx = otherPlayers.findIndex(p=>p.id===action.actorId);
+  if(idx<0) return null;
+
+  // 패널 위치 계산: 헤더 아래 52px, 각 패널은 flex 균등 분할
+  // 실제 위치는 CSS로 계산하기 어려우므로 패널 인덱스 기반으로 left% 추정
+  const n = otherPlayers.length;
+  const panelFraction = 1 / n;
+  const centerFrac = (idx + 0.5) * panelFraction;
+  // 패널 행: top=52, 높이~72px → 팝업은 top=130 근처
+  const topPx = 130;
+
   return (
-    <div style={{position:'absolute',top:58,right:8,zIndex:50,
-      background:'rgba(0,0,0,0.85)',borderRadius:12,padding:'9px 12px',
-      border:'1.5px solid rgba(255,200,80,0.4)',backdropFilter:'blur(12px)',maxWidth:220,
-      animation:'slideInRight 0.25s ease'}}>
-      <div style={{fontSize:12,fontWeight:800,color:'#FFE066',marginBottom:5}}>
-        {action.type==='play'?'🃏':'🔍'} {action.name} — {action.type==='play'?'플레이':'스카우트'}
+    <div style={{
+      position:'absolute',
+      left:`calc(${centerFrac*100}% - 80px)`,
+      top:topPx,
+      zIndex:60,
+      minWidth:160, maxWidth:200,
+      background:'rgba(10,5,0,0.95)',
+      borderRadius:12,
+      padding:'8px 10px',
+      border:`1.5px solid ${action.type==='play'?'#E8192C':'#FFE066'}`,
+      backdropFilter:'blur(14px)',
+      boxShadow:`0 4px 20px rgba(0,0,0,0.7), 0 0 16px ${action.type==='play'?'rgba(232,25,44,0.3)':'rgba(255,224,102,0.3)'}`,
+      animation:'dropDown 0.3s cubic-bezier(0.34,1.4,0.64,1)',
+    }}>
+      <div style={{fontSize:11,fontWeight:800,color:action.type==='play'?'#FF8080':'#FFE066',marginBottom:5,whiteSpace:'nowrap'}}>
+        {action.type==='play'?'🃏 플레이':'🔍 스카우트'} — {action.name}
       </div>
-      <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
+      <div style={{display:'flex',gap:3,flexWrap:'wrap',justifyContent:'center'}}>
         {(action.cards||[]).map((c,i)=>{
           const top=getTopValue(c),bot=getBottomValue(c);
           return <CardFace key={i} top={top} bot={bot} w={36} h={54} fs={12}
-            border="1.5px solid rgba(255,224,102,0.4)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>;
+            border={`1.5px solid ${action.type==='play'?'rgba(232,25,44,0.6)':'rgba(255,224,102,0.6)'}`}
+            shadow="0 2px 8px rgba(0,0,0,0.5)"/>;
         })}
       </div>
-      {action.type==='scout'&&<div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:4}}>→ 손패로 가져감</div>}
     </div>
   );
 }
@@ -534,6 +562,8 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   const [scoutIdx,setSIdx] = useState(null);
   const [insertMode,setIM] = useState(false);
   const [actionNotice,setAN]= useState(null);
+  const [fieldHighlight,setFH]= useState(null); // 스카우트 강조: {cardId}
+  const [pendingPlay,setPP]  = useState(null);  // 플레이 예고: {cards,actorId,actorIndex}
   const [showHelp,setSH]   = useState(false);
   const [scoutAnim,setSA]  = useState(null);
   const [liveEmojis,setLE] = useState({});
@@ -571,18 +601,17 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         if(prev&&newGs.currentPlayerIndex!==prev.currentPlayerIndex){
           const actorId=prev.players[prev.currentPlayerIndex];
           if(actorId!==playerId&&actorId){
-            const actorName=d.players?.[actorId]?.name||actorId;
             // 플레이 감지: field 주인이 actorId로 바뀜
             if(newGs.field?.ownerId===actorId&&newGs.field?.cards?.length>0){
               const cards=newGs.field.cards.map(fc=>({top:fc.value??fc.top,bottom:fc.bottom??fc.top,flipped:fc.flipped??false,id:fc.cardId}));
-              showNotice({type:'play',name:actorName,cards});
+              showAction('play', actorId, cards, null);
             }
-            // 스카우트 감지: field 장수가 줄었거나 null
+            // 스카우트 감지
             else if(!newGs.field||(prev.field&&newGs.field&&newGs.field.cards?.length<prev.field.cards?.length)){
               const scouted=prev.field?.cards?.find(fc=>!newGs.field?.cards?.find(nc=>nc.cardId===fc.cardId));
               if(scouted){
                 const card={top:scouted.flipped?scouted.bottom:scouted.top,bottom:scouted.flipped?scouted.top:scouted.bottom,flipped:false,id:scouted.cardId};
-                showNotice({type:'scout',name:actorName,cards:[card]});
+                showAction('scout', actorId, [card], scouted.cardId);
               }
             }
           }
@@ -599,10 +628,23 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
     });
   },[roomId,solo]);
 
-  const showNotice=(notice)=>{
-    setAN(notice);
+  const showAction=(type, actorId, cards, scoutedCardId)=>{
+    const actorName = players.find(p=>p.id===actorId)?.name || actorId;
     clearTimeout(noticeTimer.current);
-    noticeTimer.current=setTimeout(()=>setAN(null),3000);
+    if(type==='scout'){
+      // 1) 마당패 카드 노란 테두리 강조 2초
+      if(scoutedCardId) setFH({cardId:scoutedCardId});
+      noticeTimer.current=setTimeout(()=>{
+        setFH(null);
+        // 2) 팝업 표시 3초
+        setAN({type:'scout', name:actorName, cards, actorId});
+        noticeTimer.current=setTimeout(()=>setAN(null), 3000);
+      }, 2000);
+    } else {
+      // play: 1) 팝업 표시 3초 → 자연스럽게 사라짐 (마당패는 이미 gs에 반영됨)
+      setAN({type:'play', name:actorName, cards, actorId});
+      noticeTimer.current=setTimeout(()=>setAN(null), 3000);
+    }
   };
 
   // 멀티 라운드 ready 체크
@@ -673,20 +715,21 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
       if(action.type==='play') result=applyPlay(gs,cur,action.indices);
       else result=applyScout(gs,cur,action.fieldIndex,action.insertIndex);
       if(result.error){setAIT(false);return;}
-      // AI 행동 알림
+      // AI 행동 알림 — showAction 사용
+      const fc = action.type==='scout' ? gs.field?.cards[action.fieldIndex] : null;
       const noticeCards = action.type==='play'
-        ? action.indices.map(i=>gs.hands[cur][i])
-        : [gs.field?.cards[action.fieldIndex]].filter(Boolean).map(fc=>({
-            top:fc.flipped?fc.bottom:fc.top, bottom:fc.flipped?fc.top:fc.bottom, flipped:false, id:fc.cardId
-          }));
-      showNotice({type:action.type, name:getName(cur), cards:noticeCards});
+        ? action.indices.map(i=>({...gs.hands[cur][i]}))
+        : [fc].filter(Boolean).map(c=>({top:c.flipped?c.bottom:c.top,bottom:c.flipped?c.top:c.bottom,flipped:false,id:c.cardId}));
+      const scoutedCardId = action.type==='scout' ? fc?.cardId : null;
+      showAction(action.type, cur, noticeCards, scoutedCardId);
+      const showDelay = action.type==='scout' ? 2000+3000 : 3000; // scout: 2s highlight + 3s popup, play: 3s popup
       const ngs=result.state;
       setTimeout(()=>{
         const end=checkRoundEnd(ngs);
         if(end.ended){finishRound(ngs,end.winnerId);setAIT(false);return;}
         setGs(ngs); if(!solo)saveGameState(roomId,ngs);
         setAIT(false);
-      },AI_SHOW);
+      }, showDelay);
     },AI_THINK);
     return()=>clearTimeout(timerRef.current);
   },[gs?.currentPlayerIndex,roundEnd]);
@@ -825,7 +868,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           ].map(({label,cards,isFlip})=>{
             const n=cards.length;
             const SW=34, step=SW*0.5;
-            const totalW=step*(n-1)+SW;
+            const fanW=step*(n-1)+SW;
             const mid=(n-1)/2;
             const chosen = isFlip ? flipChoice===true : flipChoice===false;
             return (
@@ -838,36 +881,42 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                 transition:'all 0.15s',
               }}>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  {/* 카드 팬 */}
+                  {/* 카드 팬 — 가운데 정렬 */}
                   <div style={{flex:1,position:'relative',height:66,overflow:'visible'}}>
-                    {cards.map((c,i)=>{
-                      const rot=(i-mid)*3, liftY=Math.abs(i-mid)*2;
-                      const top=getTopValue(c),bot=getBottomValue(c);
-                      return <div key={c.id+(isFlip?'f':'')+i}
-                        style={{position:'absolute',left:i*step,bottom:liftY,zIndex:i,
-                          transform:`rotate(${rot}deg)`,transformOrigin:'bottom center'}}>
-                        <CardFace top={top} bot={bot} w={SW} h={50} fs={11}
-                          border="1.5px solid rgba(255,255,255,0.2)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>
-                      </div>;
-                    })}
+                    {(()=>{
+                      // 실제 컨테이너 너비 추정 (모달 maxWidth=520, padding=24*2, button=72, gap=10)
+                      const availW = Math.min(window.innerWidth - 48, 520) - 48 - 72 - 10;
+                      const startX = Math.max(0, (availW - fanW) / 2);
+                      return cards.map((c,i)=>{
+                        const rot=(i-mid)*3, liftY=Math.abs(i-mid)*2;
+                        const topV=getTopValue(c), botV=getBottomValue(c);
+                        return (
+                          <div key={c.id+(isFlip?'f':'')+i}
+                            style={{position:'absolute',left:startX+i*step,bottom:liftY,zIndex:i,
+                              transform:`rotate(${rot}deg)`,transformOrigin:'bottom center'}}>
+                            <CardFace top={topV} bot={botV} w={SW} h={50} fs={11}
+                              border="1.5px solid rgba(255,255,255,0.2)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
-                  {/* 선택 버튼 — 카드 오른쪽 */}
+                  {/* 선택 버튼 */}
                   <button
                     onClick={()=>setFC(isFlip?true:false)}
                     style={{
                       flexShrink:0,
-                      width:72, height:54,
+                      width:68, height:52,
                       borderRadius:12,
                       border:`2px solid ${chosen?(isFlip?'#E8192C':'#00DC96'):'rgba(255,255,255,0.2)'}`,
                       background:chosen?(isFlip?'#E8192C':'#00DC96'):'rgba(255,255,255,0.08)',
                       color:chosen?'#fff':'rgba(255,255,255,0.6)',
-                      fontFamily:'Nunito,sans-serif', fontWeight:800, fontSize:12,
+                      fontFamily:'Nunito,sans-serif', fontWeight:800, fontSize:13,
                       cursor:'pointer', transition:'all 0.15s',
-                      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2,
+                      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3,
                     }}>
-                    <span style={{fontSize:16}}>{isFlip?'↕':'✓'}</span>
+                    <span style={{fontSize:17}}>{isFlip?'↕':'✓'}</span>
                     <span>{isFlip?'뒤집기':'그대로'}</span>
-                    {chosen&&<span style={{fontSize:10}}>선택됨</span>}
                   </button>
                 </div>
               </div>
@@ -926,8 +975,8 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         ))}
       </div>
 
-      {/* ── AI 행동 알림 ── */}
-      <ActionNotice action={actionNotice}/>
+      {/* ── AI/멀티 행동 알림 — 해당 플레이어 패널 아래 ── */}
+      <ActionNotice action={actionNotice} otherPlayers={otherPlayers} playerId={playerId}/>
 
       {/* ── 마당패 영역 (중앙 약간 위) ── */}
       <div style={{position:'absolute',top:'40%',left:'50%',transform:'translate(-50%,-50%)',zIndex:5,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
@@ -945,13 +994,15 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
             <div style={{position:'relative',height:100,width:Math.max(fieldTotalW,80)}}>
               {fieldCards.map((fc,idx)=>{
                 const isEdge=idx===0||idx===fieldCards.length-1;
+                const isHighlighted = fieldHighlight && fc.cardId===fieldHighlight.cardId;
                 return (
                   <FieldCard key={idx} fc={fc}
                     scoutable={scoutModeActive&&isEdge}
                     left={idx*fieldStep} zIndex={idx} totalCards={fieldCards.length}
                     isOpen={openFieldIdx===idx}
                     onOpen={()=>setOFI(prev=>prev===idx?null:idx)}
-                    onScout={sf=>{handleSelectField(idx,sf);setOFI(null);}}/>
+                    onScout={sf=>{handleSelectField(idx,sf);setOFI(null);}}
+                    highlighted={isHighlighted}/>
                 );
               })}
             </div>
@@ -1163,6 +1214,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         @keyframes emojiPop{0%{opacity:0;transform:translate(-50%,4px) scale(0.5)}70%{transform:translate(-50%,-2px) scale(1.2)}100%{opacity:1;transform:translate(-50%,0) scale(1)}}
         @keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
         @keyframes winPop{0%{opacity:0;transform:scale(0.4) translateY(20px)}60%{transform:scale(1.12) translateY(-4px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes dropDown{0%{opacity:0;transform:translateY(-12px) scale(0.9)}100%{opacity:1;transform:translateY(0) scale(1)}}
         *{box-sizing:border-box}
         .hand-scroll{overflow-x:auto!important;overflow-y:visible!important;-webkit-overflow-scrolling:touch;touch-action:pan-x;}
         .hand-scroll::-webkit-scrollbar{height:3px}
