@@ -967,7 +967,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         )}
 
         {/* ── 내 손패 바 ── */}
-        <div style={{background:'linear-gradient(to top,rgba(0,0,0,0.92) 0%,rgba(0,0,0,0.55) 100%)',backdropFilter:'blur(12px)',borderTop:'1px solid rgba(255,255,255,0.1)',padding:'10px 10px 0',paddingBottom:'max(20px, env(safe-area-inset-bottom, 20px))' }}>
+        <div style={{background:'linear-gradient(to top,rgba(0,0,0,0.92) 0%,rgba(0,0,0,0.55) 100%)',backdropFilter:'blur(12px)',borderTop:'1px solid rgba(255,255,255,0.1)',padding:'10px 10px 0',paddingBottom:'max(20px, env(safe-area-inset-bottom, 20px))',overflow:'visible'}}>
           {/* 내 정보 + 감정표현 버튼 */}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -994,15 +994,23 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           </div>
 
           {/* ── 손패 — 팬 레이아웃 + 좌우 스크롤 ── */}
+          {/* 바깥 wrapper: 카드 상단 잘림 방지용 여유 공간 포함, overflow 제어 */}
           <div style={{
-            overflowX:'auto', overflowY:'hidden',
-            WebkitOverflowScrolling:'touch',
-            /* 선택 시 위로 올라오는 카드(~20px) + 회전 상단 여유(~18px) 확보 */
-            paddingTop:38, marginTop:-38,
+            position:'relative',
+            /* 위쪽 여유: 회전+선택 올라옴 공간 */
+            paddingTop:30,
+            /* 스크롤은 이 안쪽 div에서 처리 */
           }}>
+            <div className="hand-scroll" style={{
+              overflowX:'auto',
+              overflowY:'visible',
+              WebkitOverflowScrolling:'touch',
+              touchAction:'pan-x',
+              paddingBottom:6,
+            }}>
             {insertMode?(
-              /* 삽입 모드 — 가로 flex */
-              <div style={{display:'flex',alignItems:'flex-end',paddingTop:4,paddingLeft:6,paddingRight:16,paddingBottom:4,minWidth:'max-content'}}>
+              /* 삽입 모드 */
+              <div style={{display:'flex',alignItems:'flex-end',paddingLeft:8,paddingRight:16,minWidth:'max-content'}}>
                 <InsertBtn onClick={()=>handleInsert(0)}/>
                 {myHand.map((c,i)=>(
                   <div key={c.id||i} style={{display:'flex',alignItems:'flex-end',flexShrink:0}}>
@@ -1015,44 +1023,45 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                 ))}
               </div>
             ):(
-              /* 팬 레이아웃 — 겹침+회전, 선택 시 위로만 이동 */
+              /* 팬 레이아웃 */
               <div style={{
                 position:'relative',
-                height:CARD_H+24, // 회전 리프트 공간
-                minWidth:Math.max(myHand.length*CARD_W*0.52+CARD_W+20, 80),
-                paddingLeft:8, paddingRight:16,
+                height:CARD_H+18,
+                width:'max-content',
+                minWidth:'100%',
+                paddingLeft:8,
+                paddingRight:16,
               }}>
-                {(()=>{
+                {myHand.map((c,idx)=>{
                   const n=myHand.length;
                   const step=CARD_W*0.52;
                   const mid=(n-1)/2;
-                  return myHand.map((c,idx)=>{
-                    const isSel=selected.includes(idx);
-                    const rot=(idx-mid)*2.5;
-                    const liftBase=Math.abs(idx-mid)*1.5;
-                    return (
-                      <div key={c.id||idx}
-                        onClick={()=>toggleSelect(idx)}
-                        style={{
-                          position:'absolute',
-                          left:8+idx*step,
-                          bottom:liftBase,
-                          transform:`rotate(${rot}deg) translateY(${isSel?-20:0}px)`,
-                          transformOrigin:'bottom center',
-                          transition:'transform 0.15s cubic-bezier(0.34,1.4,0.64,1)',
-                          zIndex:idx,
-                          cursor:isMyTurn&&(mode==='play'||doublePhase==='scouted')?'pointer':'default',
-                        }}>
-                        <CardFace top={getTopValue(c)} bot={getBottomValue(c)} w={CARD_W} h={CARD_H} fs={CARD_FS}
-                          border={isSel?'2.5px solid #FFE066':'1.5px solid rgba(255,255,255,0.25)'}
-                          shadow={isSel?'0 0 14px rgba(255,224,102,0.7),0 4px 12px rgba(0,0,0,0.6)':'0 2px 8px rgba(0,0,0,0.5)'}/>
-                        {isSel&&<div style={{position:'absolute',inset:0,borderRadius:9,background:'rgba(255,224,102,0.12)',pointerEvents:'none'}}/>}
-                      </div>
-                    );
-                  });
-                })()}
+                  const isSel=selected.includes(idx);
+                  const rot=(idx-mid)*2.5;
+                  const liftBase=Math.abs(idx-mid)*1.5;
+                  return (
+                    <div key={c.id||idx}
+                      onClick={()=>toggleSelect(idx)}
+                      style={{
+                        position:'absolute',
+                        left:8+idx*step,
+                        bottom:liftBase,
+                        transform:`rotate(${rot}deg) translateY(${isSel?-20:0}px)`,
+                        transformOrigin:'bottom center',
+                        transition:'transform 0.15s cubic-bezier(0.34,1.4,0.64,1)',
+                        zIndex:idx,
+                        cursor:isMyTurn&&(mode==='play'||doublePhase==='scouted')?'pointer':'default',
+                      }}>
+                      <CardFace top={getTopValue(c)} bot={getBottomValue(c)} w={CARD_W} h={CARD_H} fs={CARD_FS}
+                        border={isSel?'2.5px solid #FFE066':'1.5px solid rgba(255,255,255,0.25)'}
+                        shadow={isSel?'0 0 14px rgba(255,224,102,0.7),0 4px 12px rgba(0,0,0,0.6)':'0 2px 8px rgba(0,0,0,0.5)'}/>
+                      {isSel&&<div style={{position:'absolute',inset:0,borderRadius:9,background:'rgba(255,224,102,0.12)',pointerEvents:'none'}}/>}
+                    </div>
+                  );
+                })}
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>
@@ -1090,6 +1099,10 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         @keyframes emojiPop{0%{opacity:0;transform:translate(-50%,4px) scale(0.5)}70%{transform:translate(-50%,-2px) scale(1.2)}100%{opacity:1;transform:translate(-50%,0) scale(1)}}
         @keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
         *{box-sizing:border-box}
+        .hand-scroll{overflow-x:auto!important;overflow-y:visible!important;-webkit-overflow-scrolling:touch;touch-action:pan-x;}
+        .hand-scroll::-webkit-scrollbar{height:3px}
+        .hand-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:2px}
+        .hand-scroll::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar{height:4px;width:4px}
         ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
         ::-webkit-scrollbar-track{background:transparent}
