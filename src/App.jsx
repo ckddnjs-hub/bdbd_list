@@ -56,20 +56,26 @@ function CardFace({top,bot,w,h,fs,border,shadow,style={},onClick}) {
     <div onClick={onClick} style={{width:w,height:h,borderRadius:9,overflow:'hidden',flexShrink:0,
       border,boxShadow:shadow,display:'flex',flexDirection:'column',
       cursor:onClick?'pointer':'default',...style}}>
-      {/* 위 숫자 — 왼쪽 */}
-      <div style={{flex:1,background:ct.bg,color:ct.text,display:'flex',alignItems:'flex-start',justifyContent:'flex-start',padding:'3px 0 0 5px',position:'relative'}}>
-        <span style={{fontFamily:"'Helvetica Neue',Arial,sans-serif",fontSize:fs,fontWeight:500,lineHeight:1,userSelect:'none'}}>{top}</span>
+      {/* 위 숫자 — 정방향, 왼쪽 상단 */}
+      <div style={{flex:1,background:ct.bg,color:ct.text,position:'relative'}}>
+        <span style={{
+          position:'absolute',top:3,left:5,
+          fontFamily:"'Helvetica Neue',Arial,sans-serif",
+          fontSize:fs,fontWeight:500,lineHeight:1,userSelect:'none',
+        }}>{top}</span>
         <div style={{position:'absolute',bottom:0,left:0,right:0,height:2,background:'rgba(0,0,0,0.15)'}}/>
       </div>
-      {/* 아래 숫자 — 뒤집어서 봤을 때 왼쪽 = 정방향 오른쪽하단에 배치 후 180도 회전 */}
+      {/* 아래 숫자 — 뒤집어서 봤을 때 왼쪽에 보임
+          원리: bottom-left에 놓고 rotate(180deg, transformOrigin=left bottom)
+          → 뒤집으면 top-right 위치에 있는데 카드 자체가 뒤집히므로 사용자 눈엔 왼쪽 상단에 보임 */}
       <div style={{flex:1,background:cb.bg,color:cb.text,position:'relative'}}>
         <span style={{
-          position:'absolute',bottom:3,right:5,
+          position:'absolute',bottom:3,left:5,
           fontFamily:"'Helvetica Neue',Arial,sans-serif",
           fontSize:fs,fontWeight:500,lineHeight:1,
           display:'block',userSelect:'none',
           transform:'rotate(180deg)',
-          transformOrigin:'center center',
+          transformOrigin:'left bottom',
         }}>{bot}</span>
       </div>
     </div>
@@ -357,7 +363,7 @@ function Lobby({onEnter}) {
               </button>
             ))}
           </div>
-          {tab==='create'&&<button style={lBtn('#E8192C')} disabled={loading} onClick={()=>go(()=>createRoom(name.trim()))}>{loading?'생성 중...':'방 만들기'}</button>}
+          {tab==='create'&&<div style={{display:'flex',justifyContent:'center'}}><button style={{...lBtn('#E8192C','12px 32px',15),minWidth:180}} disabled={loading} onClick={()=>go(()=>createRoom(name.trim()))}>{loading?'생성 중...':'🏠 방 만들기'}</button></div>}
           {tab==='join'&&<div style={{display:'flex',flexDirection:'column',gap:9}}>
             <input value={code} onChange={e=>setCode(e.target.value)} placeholder="방 코드" style={lobbyInput}/>
             <button style={lBtn('#E8192C')} disabled={loading} onClick={()=>go(()=>joinRoom(code.trim(),name.trim()))}>{loading?'입장 중...':'입장'}</button>
@@ -402,9 +408,16 @@ function Lobby({onEnter}) {
               '3. 더블 액션 — 라운드당 1회, 스카우트 후 즉시 플레이',
             ]},
             {icon:'🃏',title:'카드 강약 (우선순위)',items:[
-              '장수 많을수록 무조건 승리 (3장 > 2장)',
-              '장수 같으면: 같은숫자 > 연속숫자 (2-2 > 4-5)',
-              '조합 같으면: 숫자 높은 쪽 승리 (4-5-6 > 2-3-4)',
+              '① 장수 많을수록 무조건 승리 — 3장 > 2장 > 1장',
+              '② 장수 같으면: 같은숫자 > 연속숫자',
+              '③ 조합·장수 모두 같으면: 숫자 높은 쪽 승리',
+            ],table:[
+              ['분류','약 →→→ 강'],
+              ['[1장]','1 < 2 < 3 < … < 9 < 10'],
+              ['[2장 연속]','1-2 < 2-3 < … < 9-10'],
+              ['[2장 동일]','1-1 < 2-2 < … < 10-10'],
+              ['[3장 연속]','1-2-3 < 2-3-4 < … < 8-9-10'],
+              ['참고','10-10 > 9-10 (동일2장 > 연속2장)'],
             ]},
             {icon:'🏁',title:'라운드 종료 & 점수',items:[
               '종료: 손패 소진 OR 전원 스카우트 후 원래 차례 복귀',
@@ -412,8 +425,8 @@ function Lobby({onEnter}) {
               '감점(-): 남은 손패 장당 -1점 (라운드 종료 당사자 면제)',
               '최종 승리: 인원수만큼 라운드 후 총점 최고득점자',
             ]},
-          ].map(({icon,title,items})=>(
-            <div key={title} style={{marginBottom:12}}>
+          ].map(({icon,title,items,table})=>(
+            <div key={title} style={{marginBottom:14}}>
               <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5}}>
                 <span style={{fontSize:14}}>{icon}</span>
                 <span style={{fontWeight:800,color:'#FFE066',fontSize:11,textTransform:'uppercase',letterSpacing:'0.05em'}}>{title}</span>
@@ -424,6 +437,16 @@ function Lobby({onEnter}) {
                   <span style={{color:'rgba(255,255,255,0.55)',fontSize:11,lineHeight:1.5}}>{item}</span>
                 </div>
               ))}
+              {table&&(
+                <div style={{marginTop:6,marginLeft:4,background:'rgba(255,255,255,0.04)',borderRadius:8,overflow:'hidden',border:'1px solid rgba(255,255,255,0.08)'}}>
+                  {table.map(([label,val],i)=>(
+                    <div key={i} style={{display:'flex',borderBottom:i<table.length-1?'1px solid rgba(255,255,255,0.06)':'none',padding:'4px 8px',background:i===0?'rgba(255,255,255,0.06)':'transparent'}}>
+                      <span style={{fontSize:10,fontWeight:i===0?700:500,color:i===0?'#FFE066':'rgba(255,255,255,0.4)',width:70,flexShrink:0}}>{label}</span>
+                      <span style={{fontSize:10,color:i===0?'rgba(255,255,255,0.7)':'rgba(255,255,255,0.55)',fontFamily:'monospace',lineHeight:1.6}}>{val}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -768,15 +791,6 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   // ── 뒤집기 선택 화면 ──
   if(mode==='flip_choice'){
     const flipped=flipEntireHand(myHand);
-    const panelW=Math.min(window.innerWidth-32,520);
-    const innerW=panelW-48;
-    const SMALL_W=38, SMALL_STEP=SMALL_W*0.5;
-    const makeFan=(cards)=>{
-      const total=SMALL_STEP*(cards.length-1)+SMALL_W;
-      const startX=total<innerW?Math.max(2,(innerW-total)/2):2;
-      return cards.map((_,i)=>({left:startX+i*SMALL_STEP}));
-    };
-    const curFan=makeFan(myHand), flipFan=makeFan(flipped);
     return (
       <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.92)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,backdropFilter:'blur(16px)',padding:16}}>
         <div style={{background:'rgba(20,10,0,0.97)',border:'1px solid rgba(255,200,80,0.25)',borderRadius:20,width:'100%',maxWidth:520,padding:'20px 24px',boxShadow:'0 20px 60px rgba(0,0,0,0.8)',maxHeight:'90vh',overflowY:'auto'}}>
@@ -784,21 +798,32 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           <p style={{color:'rgba(255,255,255,0.45)',fontSize:12,textAlign:'center',marginBottom:16}}>
             뒤집기 여부 선택 후 <strong style={{color:'#FFE066'}}>확인</strong> 을 눌러야 진행됩니다
           </p>
-          {[['현재 손패',myHand,curFan],['뒤집으면',flipped,flipFan]].map(([label,cards,fan])=>(
-            <div key={label} style={{marginBottom:12}}>
-              <p style={{fontSize:10,color:'rgba(255,255,255,0.35)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>{label}</p>
-              <div style={{position:'relative',height:80,overflow:'hidden'}}>
-                {cards.map((c,i)=>{
-                  const f=fan[i]||{left:i*20};
-                  const top=getTopValue(c),bot=getBottomValue(c);
-                  return <div key={c.id+(label==='뒤집으면'?'f':'')} style={{position:'absolute',left:f.left,bottom:2,zIndex:i}}>
-                    <CardFace top={top} bot={bot} w={SMALL_W} h={58} fs={13}
-                      border="1.5px solid rgba(255,255,255,0.2)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>
-                  </div>;
-                })}
+          {[['현재 손패',myHand],['뒤집으면',flipped]].map(([label,cards])=>{
+            const n=cards.length;
+            const SW=36, step=SW*0.52;
+            const totalW=step*(n-1)+SW;
+            const mid=(n-1)/2;
+            const containerW=Math.min(window.innerWidth-80, 480);
+            const startX=totalW<containerW?Math.max(0,(containerW-totalW)/2):0;
+            return (
+              <div key={label} style={{marginBottom:14}}>
+                <p style={{fontSize:10,color:'rgba(255,255,255,0.35)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>{label}</p>
+                <div style={{position:'relative',height:72,overflow:'visible',minWidth:totalW+SW}}>
+                  {cards.map((c,i)=>{
+                    const rot=(i-mid)*3;
+                    const liftY=Math.abs(i-mid)*2;
+                    const top=getTopValue(c),bot=getBottomValue(c);
+                    return <div key={c.id+(label==='뒤집으면'?'f':'')}
+                      style={{position:'absolute',left:startX+i*step,bottom:liftY,zIndex:i,
+                        transform:`rotate(${rot}deg)`,transformOrigin:'bottom center'}}>
+                      <CardFace top={top} bot={bot} w={SW} h={54} fs={12}
+                        border="1.5px solid rgba(255,255,255,0.2)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>
+                    </div>;
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div style={{display:'flex',gap:9,marginTop:8}}>
             <button onClick={()=>setFC(false)} style={{...lBtn(flipChoice===false?'#00DC96':'rgba(255,255,255,0.09)','12px',13,flipChoice===false?'#0a1a0a':'#fff'),flex:1,border:`2px solid ${flipChoice===false?'#00DC96':'rgba(255,255,255,0.18)'}`}}>그대로{flipChoice===false?' ✓':''}</button>
             <button onClick={()=>setFC(true)}  style={{...lBtn(flipChoice===true?'#E8192C':'rgba(255,255,255,0.09)','12px',13,'#fff'),flex:1,border:`2px solid ${flipChoice===true?'#E8192C':'rgba(255,255,255,0.18)'}`}}>↕ 뒤집기{flipChoice===true?' ✓':''}</button>
@@ -971,11 +996,16 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
             </div>
           </div>
 
-          {/* ── 손패 — 팬 레이아웃 (마당패처럼) + 가로 스크롤 ── */}
-          <div style={{overflowX:'auto',overflowY:'visible',WebkitOverflowScrolling:'touch',paddingBottom:4}}>
+          {/* ── 손패 — 팬 레이아웃 + 좌우 스크롤 ── */}
+          <div style={{
+            overflowX:'auto', overflowY:'hidden',
+            WebkitOverflowScrolling:'touch',
+            /* 선택 시 위로 올라오는 카드(~20px) + 회전 상단 여유(~18px) 확보 */
+            paddingTop:38, marginTop:-38,
+          }}>
             {insertMode?(
-              /* 삽입 모드 */
-              <div style={{display:'flex',alignItems:'flex-end',gap:0,paddingTop:24,paddingLeft:4,paddingRight:4,minWidth:'max-content'}}>
+              /* 삽입 모드 — 가로 flex */
+              <div style={{display:'flex',alignItems:'flex-end',paddingTop:4,paddingLeft:6,paddingRight:16,paddingBottom:4,minWidth:'max-content'}}>
                 <InsertBtn onClick={()=>handleInsert(0)}/>
                 {myHand.map((c,i)=>(
                   <div key={c.id||i} style={{display:'flex',alignItems:'flex-end',flexShrink:0}}>
@@ -988,11 +1018,16 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                 ))}
               </div>
             ):(
-              /* 팬 레이아웃 — 마당패처럼 겹침+회전, 선택 시 위로만 이동. z-index는 순서 유지 */
-              <div style={{position:'relative',height:CARD_H+42,minWidth:Math.max(myHand.length*CARD_W*0.52+CARD_W+16,80)}}>
+              /* 팬 레이아웃 — 겹침+회전, 선택 시 위로만 이동 */
+              <div style={{
+                position:'relative',
+                height:CARD_H+24, // 회전 리프트 공간
+                minWidth:Math.max(myHand.length*CARD_W*0.52+CARD_W+20, 80),
+                paddingLeft:8, paddingRight:16,
+              }}>
                 {(()=>{
                   const n=myHand.length;
-                  const step=CARD_W*0.52; // ~48% 겹침
+                  const step=CARD_W*0.52;
                   const mid=(n-1)/2;
                   return myHand.map((c,idx)=>{
                     const isSel=selected.includes(idx);
@@ -1003,12 +1038,11 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                         onClick={()=>toggleSelect(idx)}
                         style={{
                           position:'absolute',
-                          left:idx*step+8,
+                          left:8+idx*step,
                           bottom:liftBase,
                           transform:`rotate(${rot}deg) translateY(${isSel?-20:0}px)`,
                           transformOrigin:'bottom center',
                           transition:'transform 0.15s cubic-bezier(0.34,1.4,0.64,1)',
-                          // 선택된 카드는 z-index를 idx 그대로 유지 — 오른쪽 카드가 여전히 위에
                           zIndex:idx,
                           cursor:isMyTurn&&(mode==='play'||doublePhase==='scouted')?'pointer':'default',
                         }}>
