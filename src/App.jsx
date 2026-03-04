@@ -725,32 +725,39 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   const showAction=(type, actorId, cards, scoutedCardId, onAfterHighlight, prevGsSnap, nextGsSnap)=>{
     const actorName = players.find(p=>p.id===actorId)?.name || actorId;
     clearTimeout(noticeTimer.current);
+
     // 점수 변화 계산
+    const deltas = {};
     if(prevGsSnap && nextGsSnap) {
-      const deltas = {};
       players.forEach(p=>{
         const tokDiff = (nextGsSnap.scores?.[p.id]||0) - (prevGsSnap.scores?.[p.id]||0);
         const capDiff = (nextGsSnap.capturedCards?.[p.id]||0) - (prevGsSnap.capturedCards?.[p.id]||0);
         if(tokDiff!==0||capDiff!==0) deltas[p.id]={tok:tokDiff,cap:capDiff};
       });
-      if(Object.keys(deltas).length>0){
-        setSD(deltas);
-        setTimeout(()=>setSD({}), type==='scout'?6000:4000);
-      }
     }
+
     if(type==='scout'){
       if(scoutedCardId) setFH({cardId:scoutedCardId});
       noticeTimer.current=setTimeout(()=>{
         setFH(null);
         if(onAfterHighlight) onAfterHighlight();
+        // 스카우트 팝업 뜰 때 tok 델타 표시 (cap 은 스카우트에서 안 바뀜)
+        if(Object.keys(deltas).length>0){
+          setSD(deltas);
+          setTimeout(()=>setSD({}), 3500);
+        }
         setAN({type:'scout', name:actorName, cards, actorId, fading:false});
-        // 2.5초 후 페이드아웃 시작, 0.5초 뒤 제거
         noticeTimer.current=setTimeout(()=>{
           setAN(prev=>prev?{...prev,fading:true}:null);
           setTimeout(()=>setAN(null),500);
         }, 2500);
       }, 2000);
     } else {
+      // 플레이: cap 델타(먹은패)는 즉시, tok은 없음(플레이로 토큰 변화 없음)
+      if(Object.keys(deltas).length>0){
+        setSD(deltas);
+        setTimeout(()=>setSD({}), 3500);
+      }
       setAN({type:'play', name:actorName, cards, actorId, fading:false});
       noticeTimer.current=setTimeout(()=>{
         setAN(prev=>prev?{...prev,fading:true}:null);
@@ -873,7 +880,10 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         fgs.players.forEach(pid=>{tot[pid]=(tot[pid]||0)+(sc[pid]||0);});
         const totalRounds = fgs.players.length; // 플레이어 수만큼 라운드
         const isLastRound = (fgs.round||1) >= totalRounds;
-        setRE({sc,wid,tot,totalRounds,isLastRound,hands:{...fgs.hands}});
+        // hands 스냅샷: empty_hand 승리 시 winner 손패 강제 빈 배열
+        const handsSnap = {...fgs.hands};
+        if(reason==='empty_hand') handsSnap[wid] = [];
+        setRE({sc,wid,tot,totalRounds,isLastRound,hands:handsSnap});
       },3000);
     },2500);
   };
@@ -890,6 +900,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   const handlePlay=async()=>{
     if(!isMyTurn||selected.length===0) return;
     try {
+      const prevGs = gs;
       const r=applyPlay(gs,playerId,selected);
       if(r.error) return showMsg('❌ '+r.error);
       setSel([]);
@@ -897,6 +908,12 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
       if(doublePhase==='scouted'){
         ngs.doubleActionUsed={...ngs.doubleActionUsed,[playerId]:true};
         setDP(null);
+      }
+      // 내 플레이: 먹은패 변화 델타 표시
+      const capDiff=(ngs.capturedCards?.[playerId]||0)-(prevGs.capturedCards?.[playerId]||0);
+      if(capDiff>0){
+        setSD({[playerId]:{tok:0,cap:capDiff}});
+        setTimeout(()=>setSD({}),3000);
       }
       const end=checkRoundEnd(ngs);
       if(end.ended) return finishRound(ngs,end.winnerId,end.reason);
@@ -1255,6 +1272,18 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                     {players.find(p=>p.id===playerId)?.name||'나'} ({myHand.length}장)
                   </span>
                   <EmojiPanel onSend={handleEmojiSend}/>
+                  {isMyTurn&&!insertMode&&(
+                    <div style={{
+                      display:'flex',alignItems:'center',gap:4,
+                      background:'rgba(255,224,102,0.15)',border:'1.5px solid rgba(255,224,102,0.7)',
+                      borderRadius:14,padding:'2px 10px',
+                      animation:'pulse 1.5s ease-in-out infinite',
+                      whiteSpace:'nowrap',
+                    }}>
+                      <span style={{fontSize:10,color:'#FFE066'}}>▼</span>
+                      <span style={{fontSize:11,fontWeight:900,color:'#FFE066'}}>내 차례!</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1292,22 +1321,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           </div>
 
           {/* ── 손패 — 팬 레이아웃 + 좌우 스크롤 ── */}
-          <div style={{position:'relative', paddingTop: isMyTurn && !insertMode ? 34 : 24}}>
-            {/* ▼ 내 차례 배너 */}
-            {isMyTurn && !insertMode && (
-              <div style={{
-                position:'absolute', top:0, left:'50%', transform:'translateX(-50%)',
-                display:'flex', alignItems:'center', gap:5, zIndex:20, pointerEvents:'none',
-                background:'rgba(255,224,102,0.14)', border:'1.5px solid rgba(255,224,102,0.7)',
-                borderRadius:20, padding:'3px 16px',
-                animation:'pulse 1.5s ease-in-out infinite',
-                backdropFilter:'blur(6px)', whiteSpace:'nowrap',
-              }}>
-                <span style={{fontSize:11,color:'#FFE066'}}>▼</span>
-                <span style={{fontSize:12,fontWeight:900,color:'#FFE066',letterSpacing:'0.08em'}}>내 차례!</span>
-                <span style={{fontSize:11,color:'#FFE066'}}>▼</span>
-              </div>
-            )}
+          <div style={{position:'relative', paddingTop:24}}>
             <div className="hand-scroll" style={{
               overflowX:'auto', overflowY:'visible',
               WebkitOverflowScrolling:'touch', touchAction:'pan-x',
