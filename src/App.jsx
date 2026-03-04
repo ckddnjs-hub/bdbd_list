@@ -89,6 +89,8 @@ function SmallCard({card, dim=false}) {
 // ─── 마당패 카드 ──────────────────────────────────────────────
 function FieldCard({fc, scoutable, onScout, left=0, zIndex=0, totalCards=1, isOpen, onOpen, highlighted=false}) {
   const [flippedView,setFlippedView]=useState(false);
+  // 팝업이 닫히거나 스카우트 모드 해제 시 뒤집기 상태 리셋
+  useEffect(()=>{ if(!isOpen||!scoutable) setFlippedView(false); },[isOpen,scoutable]);
   const rawTop=fc.flipped?fc.bottom:fc.top, rawBot=fc.flipped?fc.top:fc.bottom;
   const dTop=flippedView?rawBot:rawTop, dBot=flippedView?rawTop:rawBot;
   const W=54,H=82,FS=20;
@@ -763,7 +765,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
     if(gs.players.length>0&&gs.players.every(pid=>roundReady[pid])) handleNextRound();
   },[roundReady,roundEnd]);
 
-  // 턴 타이머 — TIMEOUT은 gs에서 읽으므로 gs도 dependency에 포함
+  // 턴 타이머 — 턴이 바뀔 때(currentPlayerIndex)만 리셋, mode 전환은 무시
   useEffect(()=>{
     clearInterval(turnTimRef.current);
     const timeout = gs?.turnTimeout||TURN_TIMEOUT;
@@ -783,7 +785,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
     },1000);
     return()=>clearInterval(turnTimRef.current);
   // eslint-disable-next-line
-  },[gs?.currentPlayerIndex, gs?.turnTimeout, roundEnd, winBanner, mode]);
+  },[gs?.currentPlayerIndex, gs?.turnTimeout, roundEnd, winBanner]);
 
   const autoScoutOrPlay=()=>{
     // 마당패 있으면 마지막 카드 스카우트, 없으면 첫 카드 플레이
@@ -1205,7 +1207,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         {isMyTurn&&!insertMode&&doublePhase===null&&(
           <div style={{display:'flex',justifyContent:'center',gap:6,marginBottom:5,padding:'0 10px'}}>
             {[['play','🃏','플레이',true],['scout','🔍','스카우트',canScout],['double','⚡','더블',canDouble]].map(([m,ic,nm,en])=>(
-              <button key={m} onClick={()=>{if(en){setMode(m);setSel([]);}}} style={{
+              <button key={m} onClick={()=>{if(en){setMode(m);setSel([]);setOFI(null);}}} style={{
                 background:mode===m?'rgba(232,25,44,0.85)':'rgba(0,0,0,0.55)',
                 border:`2px solid ${mode===m?'#E8192C':'rgba(255,255,255,0.13)'}`,
                 borderRadius:11,color:en?'#fff':'rgba(255,255,255,0.22)',
