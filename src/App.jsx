@@ -65,15 +65,14 @@ function CardFace({top,bot,w,h,fs,border,shadow,style={},onClick}) {
         }}>{top}</span>
         <div style={{position:'absolute',bottom:0,left:0,right:0,height:2,background:'rgba(0,0,0,0.15)'}}/>
       </div>
-      {/* 아래 절반 전체를 180도 회전 → 뒤집어보면 숫자가 왼쪽 위에 보임 */}
-      <div style={{flex:1,background:cb.bg,color:cb.text,
-        display:'flex',alignItems:'flex-start',justifyContent:'flex-start',
+      {/* 아래 절반: scale(-1,-1) 로 뒤집기 — rotate와 달리 박스 밖으로 안 나감 */}
+      <div style={{
+        flex:1, background:cb.bg, color:cb.text,
+        display:'flex', alignItems:'flex-start', justifyContent:'flex-start',
         padding:'3px 0 0 5px',
-        transform:'rotate(180deg)'}}>
-        <span style={{
-          fontFamily:"'Helvetica Neue',Arial,sans-serif",
-          fontSize:fs,fontWeight:500,lineHeight:1,userSelect:'none',
-        }}>{bot}</span>
+        transform:'scale(-1,-1)',
+      }}>
+        <span style={{fontFamily:"'Helvetica Neue',Arial,sans-serif",fontSize:fs,fontWeight:500,lineHeight:1,userSelect:'none'}}>{bot}</span>
       </div>
     </div>
   );
@@ -414,7 +413,7 @@ function Lobby({onEnter}) {
               ['[2장 연속]','1-2 < 2-3 < … < 9-10'],
               ['[2장 동일]','1-1 < 2-2 < … < 10-10'],
               ['[3장 연속]','1-2-3 < 2-3-4 < … < 8-9-10'],
-              ['참고',' 9-10 < 1-1 (연속2장 > 동일2장)'],
+              ['참고','10-10 > 9-10 (동일2장 > 연속2장)'],
             ]},
             {icon:'🏁',title:'라운드 종료 & 점수',items:[
               '종료: 손패 소진 OR 전원 스카우트 후 원래 차례 복귀',
@@ -530,6 +529,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   const [selected,setSel]  = useState([]);
   const [msg,setMsg]       = useState('');
   const [roundEnd,setRE]   = useState(null);
+  const [winBanner,setWB]  = useState(null); // {name} — 4초 WIN 팝업
   const [aiThinking,setAIT]= useState(false);
   const [scoutIdx,setSIdx] = useState(null);
   const [insertMode,setIM] = useState(false);
@@ -611,23 +611,27 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
     if(gs.players.length>0&&gs.players.every(pid=>roundReady[pid])) handleNextRound();
   },[roundReady,roundEnd]);
 
-  // 45초 턴 타이머 (내 차례에만)
+  // 턴 타이머 — TIMEOUT은 gs에서 읽으므로 gs도 dependency에 포함
   useEffect(()=>{
     clearInterval(turnTimRef.current);
-    if(!gs||roundEnd||mode==='flip_choice'||isAI(curId)||curId!==playerId) { setTS(TIMEOUT); return; }
-    setTS(TIMEOUT);
+    const timeout = gs?.turnTimeout||TURN_TIMEOUT;
+    if(!gs||roundEnd||winBanner||mode==='flip_choice'||isAI(curId)||curId!==playerId) {
+      setTS(timeout); return;
+    }
+    setTS(timeout);
     turnTimRef.current=setInterval(()=>{
       setTS(prev=>{
         if(prev<=1){
           clearInterval(turnTimRef.current);
           autoScoutOrPlay();
-          return TIMEOUT;
+          return timeout;
         }
         return prev-1;
       });
     },1000);
     return()=>clearInterval(turnTimRef.current);
-  },[gs?.currentPlayerIndex, roundEnd, mode]);
+  // eslint-disable-next-line
+  },[gs?.currentPlayerIndex, gs?.turnTimeout, roundEnd, winBanner, mode]);
 
   const autoScoutOrPlay=()=>{
     // 마당패 있으면 마지막 카드 스카우트, 없으면 첫 카드 플레이
@@ -689,9 +693,14 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
 
   const persist=async ngs=>{setGs(ngs);if(!solo)await saveGameState(roomId,ngs);};
   const finishRound=(fgs,wid)=>{
-    const sc=calculateRoundScore(fgs,wid), tot={...fgs.totalScores};
-    fgs.players.forEach(pid=>{tot[pid]=(tot[pid]||0)+(sc[pid]||0);});
-    setRE({sc,wid,tot});
+    // 4초 WIN 배너 → 결과 화면
+    setWB({name:getName(wid)});
+    setTimeout(()=>{
+      setWB(null);
+      const sc=calculateRoundScore(fgs,wid), tot={...fgs.totalScores};
+      fgs.players.forEach(pid=>{tot[pid]=(tot[pid]||0)+(sc[pid]||0);});
+      setRE({sc,wid,tot});
+    },4000);
   };
 
   const handleFlipConfirm=async()=>{
@@ -705,13 +714,23 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
 
   const handlePlay=async()=>{
     if(!isMyTurn||selected.length===0) return;
-    const r=applyPlay(gs,playerId,selected);
-    if(r.error) return showMsg('❌ '+r.error);
-    setSel([]);
-    if(doublePhase==='scouted'){r.state.doubleActionUsed={...r.state.doubleActionUsed,[playerId]:true};setDP(null);}
-    const end=checkRoundEnd(r.state);
-    if(end.ended) return finishRound(r.state,end.winnerId);
-    await persist(r.state); setMode('play');
+    try {
+      const r=applyPlay(gs,playerId,selected);
+      if(r.error) return showMsg('❌ '+r.error);
+      setSel([]);
+      const ngs=r.state;
+      if(doublePhase==='scouted'){
+        ngs.doubleActionUsed={...ngs.doubleActionUsed,[playerId]:true};
+        setDP(null);
+      }
+      const end=checkRoundEnd(ngs);
+      if(end.ended) return finishRound(ngs,end.winnerId);
+      await persist(ngs); setMode('play');
+    } catch(e) {
+      console.error('handlePlay error',e);
+      setDP(null); setSel([]); setMode('play');
+      showMsg('❌ 오류가 발생했습니다. 다시 시도해주세요.');
+    }
   };
 
   const handleSelectField=(fi,shouldFlip)=>{
@@ -722,25 +741,30 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   const handleInsert=async insertIdx=>{
     if(scoutIdx===null) return;
     const {fi,shouldFlip,isDouble}=scoutIdx;
-    const fc=gs.field?.cards[fi];
-    if(!fc){showMsg('❌ 카드 없음');return;}
-    const r=applyScout(gs,playerId,fi,insertIdx,shouldFlip);
-    if(r.error){showMsg('❌ '+r.error);return;}
-    setSIdx(null);setIM(false);
-    // 스카우트 애니메이션용 카드
-    const animTop=shouldFlip?(fc.flipped?fc.top:fc.bottom):(fc.flipped?fc.bottom:fc.top);
-    const animBot=shouldFlip?(fc.flipped?fc.bottom:fc.top):(fc.flipped?fc.top:fc.bottom);
-    setSA({card:{top:animTop,bottom:animBot,flipped:false},toLabel:getName(playerId)});
-    if(isDouble){
-      const myIdx2=r.state.players.indexOf(playerId);
-      const sd={...r.state,currentPlayerIndex:myIdx2};
-      setGs(sd); if(!solo)saveGameState(roomId,sd);
-      setDP('scouted'); setMode('play'); showMsg('⚡ 스카우트! 이제 플레이하세요.');
-      return;
+    try {
+      const fc=gs.field?.cards[fi];
+      if(!fc){showMsg('❌ 카드 없음');setIM(false);setSIdx(null);return;}
+      const r=applyScout(gs,playerId,fi,insertIdx,shouldFlip);
+      if(r.error){showMsg('❌ '+r.error);setIM(false);setSIdx(null);return;}
+      setSIdx(null);setIM(false);
+      const animTop=shouldFlip?(fc.flipped?fc.top:fc.bottom):(fc.flipped?fc.bottom:fc.top);
+      const animBot=shouldFlip?(fc.flipped?fc.bottom:fc.top):(fc.flipped?fc.top:fc.bottom);
+      setSA({card:{top:animTop,bottom:animBot,flipped:false},toLabel:getName(playerId)});
+      if(isDouble){
+        const myIdx2=r.state.players.indexOf(playerId);
+        const sd={...r.state,currentPlayerIndex:myIdx2};
+        setGs(sd); if(!solo)saveGameState(roomId,sd).catch(e=>console.error(e));
+        setDP('scouted'); setMode('play'); showMsg('⚡ 스카우트! 이제 플레이하세요.');
+        return;
+      }
+      const end=checkRoundEnd(r.state);
+      if(end.ended) return finishRound(r.state,end.winnerId);
+      await persist(r.state); setMode('play'); showMsg('✅ 스카우트!');
+    } catch(e) {
+      console.error('handleInsert error',e);
+      setSIdx(null); setIM(false); setDP(null); setMode('play');
+      showMsg('❌ 오류가 발생했습니다. 다시 시도해주세요.');
     }
-    const end=checkRoundEnd(r.state);
-    if(end.ended) return finishRound(r.state,end.winnerId);
-    await persist(r.state); setMode('play'); showMsg('✅ 스카우트!');
   };
 
   const cancelScout=()=>{setSIdx(null);setIM(false);if(doublePhase!=='scouted')setMode('play');};
@@ -827,7 +851,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           </div>
           <button onClick={handleFlipConfirm} disabled={flipChoice===null}
             style={{...lBtn(flipChoice!==null?'#FFE066':'#333','13px',15,flipChoice!==null?'#1a1a1a':'rgba(255,255,255,0.2)'),width:'100%',marginTop:10,boxShadow:flipChoice!==null?'0 4px 18px rgba(255,224,102,0.5)':'none',transition:'all 0.2s'}}>
-            {flipChoice===null?'먼저 위에서 선택해주세요':'✓ 게임 시작!'}
+            {flipChoice===null?'먼저 위에서 선택해주세요':'✓ 확인 — 게임 시작!'}
           </button>
         </div>
       </div>
@@ -920,6 +944,21 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
       {/* ── 스카우트 애니메이션 ── */}
       {scoutAnim&&<ScoutAnim card={scoutAnim.card} toLabel={scoutAnim.toLabel} onDone={()=>setSA(null)}/>}
 
+      {/* WIN 배너 — position:fixed 로 화면 중앙에 표시 */}
+      {winBanner&&(
+        <div style={{position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',zIndex:9999,background:'rgba(0,0,0,0.6)',backdropFilter:'blur(8px)'}}>
+          <div style={{textAlign:'center',animation:'winPop 0.5s cubic-bezier(0.34,1.56,0.64,1)'}}>
+            <div style={{fontSize:36,marginBottom:10}}>🏆</div>
+            <div style={{
+              fontSize:44,fontWeight:900,color:'#FFE066',fontFamily:'Nunito,sans-serif',
+              textShadow:'0 0 50px rgba(255,224,102,1), 0 4px 24px rgba(0,0,0,0.9)',
+              letterSpacing:'-1px',lineHeight:1,
+            }}>{winBanner.name}</div>
+            <div style={{fontSize:24,color:'#fff',fontWeight:700,marginTop:10,letterSpacing:'0.1em',opacity:0.9}}>WIN! 🎉</div>
+          </div>
+        </div>
+      )}
+
       {/* ── 하단 손패 영역 ── */}
       <div style={{position:'absolute',bottom:0,left:0,right:0,zIndex:10}}>
         {/* 더블액션 배너 */}
@@ -966,8 +1005,8 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           </div>
         )}
 
-        {/* ── 내 손패 바 ── */}
-        <div style={{background:'linear-gradient(to top,rgba(0,0,0,0.92) 0%,rgba(0,0,0,0.55) 100%)',backdropFilter:'blur(12px)',borderTop:'1px solid rgba(255,255,255,0.1)',padding:'10px 10px 0',paddingBottom:'max(20px, env(safe-area-inset-bottom, 20px))',overflow:'visible'}}>
+        {/* ── 내 손패 바 — 높이 충분히, 카드 가운데 정렬 ── */}
+        <div style={{background:'linear-gradient(to top,rgba(0,0,0,0.95) 0%,rgba(0,0,0,0.6) 100%)',backdropFilter:'blur(12px)',borderTop:'1px solid rgba(255,255,255,0.1)',padding:'10px 10px 0',paddingBottom:'max(24px, env(safe-area-inset-bottom, 24px))',overflow:'visible'}}>
           {/* 내 정보 + 감정표현 버튼 */}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -994,19 +1033,11 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           </div>
 
           {/* ── 손패 — 팬 레이아웃 + 좌우 스크롤 ── */}
-          {/* 바깥 wrapper: 카드 상단 잘림 방지용 여유 공간 포함, overflow 제어 */}
-          <div style={{
-            position:'relative',
-            /* 위쪽 여유: 회전+선택 올라옴 공간 */
-            paddingTop:30,
-            /* 스크롤은 이 안쪽 div에서 처리 */
-          }}>
+          <div style={{position:'relative', paddingTop:32}}>
             <div className="hand-scroll" style={{
-              overflowX:'auto',
-              overflowY:'visible',
-              WebkitOverflowScrolling:'touch',
-              touchAction:'pan-x',
-              paddingBottom:6,
+              overflowX:'auto', overflowY:'visible',
+              WebkitOverflowScrolling:'touch', touchAction:'pan-x',
+              paddingBottom:8,
             }}>
             {insertMode?(
               /* 삽입 모드 */
@@ -1022,45 +1053,51 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                   </div>
                 ))}
               </div>
-            ):(
-              /* 팬 레이아웃 */
-              <div style={{
-                position:'relative',
-                height:CARD_H+18,
-                width:'max-content',
-                minWidth:'100%',
-                paddingLeft:8,
-                paddingRight:16,
-              }}>
-                {myHand.map((c,idx)=>{
-                  const n=myHand.length;
-                  const step=CARD_W*0.52;
-                  const mid=(n-1)/2;
-                  const isSel=selected.includes(idx);
-                  const rot=(idx-mid)*2.5;
-                  const liftBase=Math.abs(idx-mid)*1.5;
-                  return (
-                    <div key={c.id||idx}
-                      onClick={()=>toggleSelect(idx)}
-                      style={{
-                        position:'absolute',
-                        left:8+idx*step,
-                        bottom:liftBase,
-                        transform:`rotate(${rot}deg) translateY(${isSel?-20:0}px)`,
-                        transformOrigin:'bottom center',
-                        transition:'transform 0.15s cubic-bezier(0.34,1.4,0.64,1)',
-                        zIndex:idx,
-                        cursor:isMyTurn&&(mode==='play'||doublePhase==='scouted')?'pointer':'default',
-                      }}>
-                      <CardFace top={getTopValue(c)} bot={getBottomValue(c)} w={CARD_W} h={CARD_H} fs={CARD_FS}
-                        border={isSel?'2.5px solid #FFE066':'1.5px solid rgba(255,255,255,0.25)'}
-                        shadow={isSel?'0 0 14px rgba(255,224,102,0.7),0 4px 12px rgba(0,0,0,0.6)':'0 2px 8px rgba(0,0,0,0.5)'}/>
-                      {isSel&&<div style={{position:'absolute',inset:0,borderRadius:9,background:'rgba(255,224,102,0.12)',pointerEvents:'none'}}/>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            ):(()=>{
+              /* 팬 레이아웃 — 카드가 적을 때 가운데 정렬 */
+              const n=myHand.length;
+              const step=CARD_W*0.52;
+              const fanW=step*(n-1)+CARD_W+24; // 총 너비
+              const mid=(n-1)/2;
+              return (
+                <div style={{
+                  position:'relative',
+                  height:CARD_H+20,
+                  minWidth: fanW,
+                  width:'100%',
+                }}>
+                  {/* 카드를 수평 중앙에 배치하기 위한 오프셋 */}
+                  {(()=>{
+                    const containerW = typeof window!=='undefined' ? window.innerWidth : 400;
+                    const offsetX = Math.max(12, (containerW - fanW) / 2);
+                    return myHand.map((c,idx)=>{
+                      const isSel=selected.includes(idx);
+                      const rot=(idx-mid)*2.5;
+                      const liftBase=Math.abs(idx-mid)*1.5;
+                      return (
+                        <div key={c.id||idx}
+                          onClick={()=>toggleSelect(idx)}
+                          style={{
+                            position:'absolute',
+                            left: offsetX + idx*step,
+                            bottom:liftBase,
+                            transform:`rotate(${rot}deg) translateY(${isSel?-20:0}px)`,
+                            transformOrigin:'bottom center',
+                            transition:'transform 0.15s cubic-bezier(0.34,1.4,0.64,1)',
+                            zIndex:idx,
+                            cursor:isMyTurn&&(mode==='play'||doublePhase==='scouted')?'pointer':'default',
+                          }}>
+                          <CardFace top={getTopValue(c)} bot={getBottomValue(c)} w={CARD_W} h={CARD_H} fs={CARD_FS}
+                            border={isSel?'2.5px solid #FFE066':'1.5px solid rgba(255,255,255,0.25)'}
+                            shadow={isSel?'0 0 14px rgba(255,224,102,0.7),0 4px 12px rgba(0,0,0,0.6)':'0 2px 8px rgba(0,0,0,0.5)'}/>
+                          {isSel&&<div style={{position:'absolute',inset:0,borderRadius:9,background:'rgba(255,224,102,0.12)',pointerEvents:'none'}}/>}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              );
+            })()}
             </div>
           </div>
         </div>
@@ -1098,6 +1135,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
         @keyframes emojiPop{0%{opacity:0;transform:translate(-50%,4px) scale(0.5)}70%{transform:translate(-50%,-2px) scale(1.2)}100%{opacity:1;transform:translate(-50%,0) scale(1)}}
         @keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes winPop{0%{opacity:0;transform:scale(0.4) translateY(20px)}60%{transform:scale(1.12) translateY(-4px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         *{box-sizing:border-box}
         .hand-scroll{overflow-x:auto!important;overflow-y:visible!important;-webkit-overflow-scrolling:touch;touch-action:pan-x;}
         .hand-scroll::-webkit-scrollbar{height:3px}
@@ -1140,8 +1178,32 @@ function ScoutAnim({card, toLabel, onDone}) {
   );
 }
 
+// ─── 에러 바운더리 (검정화면 방지) ──────────────────────────
+import { Component } from 'react';
+class ErrorBoundary extends Component {
+  constructor(p){super(p);this.state={err:null};}
+  static getDerivedStateFromError(e){return {err:e};}
+  componentDidCatch(e,info){console.error('Game crash:',e,info);}
+  render(){
+    if(this.state.err) return (
+      <div style={{minHeight:'100vh',background:'#1a0a00',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:'Nunito,sans-serif'}}>
+        <div style={{textAlign:'center',maxWidth:340}}>
+          <div style={{fontSize:48,marginBottom:16}}>😵</div>
+          <h2 style={{color:'#FFE066',marginBottom:10,fontSize:20}}>앗, 오류가 발생했어요</h2>
+          <p style={{color:'rgba(255,255,255,0.5)',fontSize:13,marginBottom:20,lineHeight:1.6}}>게임 중 예기치 못한 오류가 발생했습니다.<br/>아래 버튼을 눌러 다시 시도해주세요.</p>
+          <button onClick={()=>this.setState({err:null})}
+            style={{background:'#E8192C',border:'none',borderRadius:10,color:'#fff',fontFamily:'Nunito,sans-serif',fontSize:15,fontWeight:800,padding:'12px 28px',cursor:'pointer'}}>
+            🔄 처음으로 돌아가기
+          </button>
+        </div>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 // ─── 앱 루트 ─────────────────────────────────────────────────
-export default function App() {
+function AppInner() {
   const [screen,setScreen]=useState('lobby');
   const [info,setInfo]=useState(null);
   const [room,setRoom]=useState(null);
@@ -1164,4 +1226,8 @@ export default function App() {
   if(screen==='game'&&info?.solo)
     return <GameBoard playerId={info.playerId} gameState={info.gameState} soloPlayers={info.soloPlayers} solo={true} onLeave={leave}/>;
   return <div style={{color:'rgba(255,255,255,0.4)',textAlign:'center',paddingTop:100}}>연결 중...</div>;
+}
+
+export default function App() {
+  return <ErrorBoundary><AppInner/></ErrorBoundary>;
 }
