@@ -146,13 +146,15 @@ function InsertBtn({onClick}) {
 }
 
 // ─── 상대방 패널 (1줄 압축) ───────────────────────────────────
-function OpponentPanel({p, gs, players, isCur, emoji}) {
+function OpponentPanel({p, gs, players, isCur, emoji, scoreDelta}) {
   const pi=players.findIndex(pl=>pl.id===p.id);
   const col=PC[pi%PC.length];
   const hLen=gs.hands?.[p.id]?.length||0;
   const tok=gs.scores?.[p.id]||0;
   const cap=gs.capturedCards?.[p.id]||0;
   const dbl=!gs.doubleActionUsed?.[p.id];
+  const tokDelta = scoreDelta?.tok;
+  const capDelta = scoreDelta?.cap;
   return (
     <div style={{flex:'1 1 0',minWidth:0,
       background:isCur?'rgba(255,184,0,0.18)':'rgba(0,0,0,0.55)',
@@ -160,7 +162,6 @@ function OpponentPanel({p, gs, players, isCur, emoji}) {
       borderRadius:10,padding:'6px 8px',backdropFilter:'blur(10px)',
       boxShadow:isCur?'0 0 12px rgba(255,184,0,0.3)':'none',
       transition:'all 0.2s',display:'flex',flexDirection:'column',gap:4,position:'relative'}}>
-      {/* 이모지 팝업 — 패널 아래 */}
       {emoji&&<div style={{position:'absolute',bottom:-30,left:'50%',transform:'translateX(-50%)',
         fontSize:22,zIndex:50,animation:'emojiPop 0.3s ease',pointerEvents:'none',
         background:'rgba(10,5,0,0.8)',borderRadius:20,padding:'2px 8px',
@@ -168,7 +169,6 @@ function OpponentPanel({p, gs, players, isCur, emoji}) {
         display:'flex',alignItems:'center',gap:4}}>
         {emoji}
       </div>}
-      {/* 아바타 + 이름 + 더블 */}
       <div style={{display:'flex',alignItems:'center',gap:5}}>
         <div style={{position:'relative',flexShrink:0}}>
           <div style={{width:24,height:24,borderRadius:'50%',background:col,
@@ -185,50 +185,85 @@ function OpponentPanel({p, gs, players, isCur, emoji}) {
         </span>
         {dbl&&<span style={{fontSize:10}} title="더블 가능">⚡</span>}
       </div>
-      {/* 미니 스탯 */}
+      {/* 미니 스탯 — 토큰/먹은패 위에 델타 팝업 */}
       <div style={{display:'flex',gap:3}}>
-        {[['🃏',hLen,hLen<=3?'#FF6B6B':'#eee'],['🏅',tok,'#FFE066'],['📥',cap,'#00DC96']].map(([ic,v,c])=>(
-          <div key={ic} style={{flex:1,background:'rgba(255,255,255,0.08)',borderRadius:4,
-            padding:'2px 3px',display:'flex',alignItems:'center',justifyContent:'center',gap:2}}>
-            <span style={{fontSize:9}}>{ic}</span>
-            <span style={{fontSize:11,fontWeight:800,color:c,lineHeight:1}}>{v}</span>
-          </div>
-        ))}
+        {/* 토큰 */}
+        <div style={{flex:1,background:'rgba(255,255,255,0.08)',borderRadius:4,
+          padding:'2px 3px',display:'flex',alignItems:'center',justifyContent:'center',gap:2,position:'relative'}}>
+          {tokDelta!==undefined&&tokDelta!==0&&(
+            <div style={{
+              position:'absolute',top:-20,left:'50%',transform:'translateX(-50%)',
+              background:'rgba(8,4,0,0.92)',border:'1px solid #FFE066',borderRadius:6,
+              padding:'1px 5px',whiteSpace:'nowrap',zIndex:80,pointerEvents:'none',
+              fontSize:10,fontWeight:900,color:'#FFE066',fontFamily:'Nunito,sans-serif',
+              animation:'floatUp 0.4s ease',
+            }}>
+              {tokDelta>0?'+':''}{tokDelta}점
+            </div>
+          )}
+          <span style={{fontSize:9}}>🏅</span>
+          <span style={{fontSize:11,fontWeight:800,color:'#FFE066',lineHeight:1}}>{tok}</span>
+        </div>
+        {/* 먹은 패 */}
+        <div style={{flex:1,background:'rgba(255,255,255,0.08)',borderRadius:4,
+          padding:'2px 3px',display:'flex',alignItems:'center',justifyContent:'center',gap:2,position:'relative'}}>
+          {capDelta!==undefined&&capDelta!==0&&(
+            <div style={{
+              position:'absolute',top:-20,left:'50%',transform:'translateX(-50%)',
+              background:'rgba(8,4,0,0.92)',border:'1px solid #00DC96',borderRadius:6,
+              padding:'1px 5px',whiteSpace:'nowrap',zIndex:80,pointerEvents:'none',
+              fontSize:10,fontWeight:900,color:'#00DC96',fontFamily:'Nunito,sans-serif',
+              animation:'floatUp 0.4s ease',
+            }}>
+              {capDelta>0?'+':''}{capDelta}장
+            </div>
+          )}
+          <span style={{fontSize:9}}>📥</span>
+          <span style={{fontSize:11,fontWeight:800,color:'#00DC96',lineHeight:1}}>{cap}</span>
+        </div>
+        {/* 카드 수 */}
+        <div style={{flex:1,background:'rgba(255,255,255,0.08)',borderRadius:4,
+          padding:'2px 3px',display:'flex',alignItems:'center',justifyContent:'center',gap:2}}>
+          <span style={{fontSize:9}}>🃏</span>
+          <span style={{fontSize:11,fontWeight:800,color:hLen<=3?'#FF6B6B':'#eee',lineHeight:1}}>{hLen}</span>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── 행동 알림 팝업 (플레이어 패널 아래에 표시) ─────────────
-// action: {type, name, cards, actorIndex, panelCount}
-// panelLeft, panelWidth: 해당 플레이어 패널의 x 위치/너비
-function ActionNotice({action, otherPlayers, playerId}) {
+// ─── 행동 알림 팝업 (플레이어 패널 아래) ─────────────────────
+function ActionNotice({action, otherPlayers}) {
+  const [vis,setVis]=useState(false);
+  useEffect(()=>{
+    if(action){setVis(true);}
+    else{setVis(false);}
+  },[action]);
+
   if(!action) return null;
   const idx = otherPlayers.findIndex(p=>p.id===action.actorId);
   if(idx<0) return null;
-
-  // 패널 위치 계산: 헤더 아래 52px, 각 패널은 flex 균등 분할
-  // 실제 위치는 CSS로 계산하기 어려우므로 패널 인덱스 기반으로 left% 추정
   const n = otherPlayers.length;
-  const panelFraction = 1 / n;
-  const centerFrac = (idx + 0.5) * panelFraction;
-  // 패널 행: top=52, 높이~72px → 팝업은 top=130 근처
-  const topPx = 130;
+  const centerFrac = (idx + 0.5) / n;
 
   return (
     <div style={{
       position:'absolute',
-      left:`calc(${centerFrac*100}% - 80px)`,
-      top:topPx,
+      left:`calc(${centerFrac*100}% - 85px)`,
+      top:132,
       zIndex:60,
-      minWidth:160, maxWidth:200,
-      background:'rgba(10,5,0,0.95)',
-      borderRadius:12,
-      padding:'8px 10px',
+      minWidth:165, maxWidth:210,
+      background:'rgba(8,4,0,0.96)',
+      borderRadius:13,
+      padding:'8px 11px',
       border:`1.5px solid ${action.type==='play'?'#E8192C':'#FFE066'}`,
-      backdropFilter:'blur(14px)',
-      boxShadow:`0 4px 20px rgba(0,0,0,0.7), 0 0 16px ${action.type==='play'?'rgba(232,25,44,0.3)':'rgba(255,224,102,0.3)'}`,
-      animation:'dropDown 0.3s cubic-bezier(0.34,1.4,0.64,1)',
+      backdropFilter:'blur(16px)',
+      boxShadow:`0 6px 24px rgba(0,0,0,0.8), 0 0 20px ${action.type==='play'?'rgba(232,25,44,0.25)':'rgba(255,224,102,0.25)'}`,
+      transition:'opacity 0.5s ease, transform 0.5s ease',
+      opacity: action.fading ? 0 : 1,
+      transform: action.fading ? 'translateY(-8px) scale(0.96)' : 'translateY(0) scale(1)',
+      animation: action.fading ? 'none' : 'dropDown 0.35s cubic-bezier(0.34,1.4,0.64,1)',
+      pointerEvents:'none',
     }}>
       <div style={{fontSize:11,fontWeight:800,color:action.type==='play'?'#FF8080':'#FFE066',marginBottom:5,whiteSpace:'nowrap'}}>
         {action.type==='play'?'🃏 플레이':'🔍 스카우트'} — {action.name}
@@ -236,11 +271,35 @@ function ActionNotice({action, otherPlayers, playerId}) {
       <div style={{display:'flex',gap:3,flexWrap:'wrap',justifyContent:'center'}}>
         {(action.cards||[]).map((c,i)=>{
           const top=getTopValue(c),bot=getBottomValue(c);
-          return <CardFace key={i} top={top} bot={bot} w={36} h={54} fs={12}
+          return <CardFace key={i} top={top} bot={bot} w={34} h={52} fs={11}
             border={`1.5px solid ${action.type==='play'?'rgba(232,25,44,0.6)':'rgba(255,224,102,0.6)'}`}
             shadow="0 2px 8px rgba(0,0,0,0.5)"/>;
         })}
       </div>
+    </div>
+  );
+}
+
+// ─── 점수 변화 팝업 (통계창 위) ──────────────────────────────
+function ScoreDelta({delta, color, label, unit=''}) {
+  const [vis,setVis]=useState(false);
+  useEffect(()=>{
+    if(delta){setTimeout(()=>setVis(true),50);}
+    else setVis(false);
+  },[delta]);
+  if(!delta) return null;
+  const sign = delta>0?'+':'';
+  return (
+    <div style={{
+      position:'absolute',top:-22,left:'50%',transform:'translateX(-50%)',
+      background:'rgba(10,5,0,0.9)',border:`1px solid ${color}`,borderRadius:8,
+      padding:'2px 7px',whiteSpace:'nowrap',zIndex:80,pointerEvents:'none',
+      transition:'opacity 0.6s ease, transform 0.6s ease',
+      opacity: vis ? 1 : 0,
+      fontSize:11,fontWeight:900,color,
+      fontFamily:'Nunito,sans-serif',
+    }}>
+      {sign}{delta}{unit}
     </div>
   );
 }
@@ -281,19 +340,26 @@ function EmojiPanel({onSend}) {
 function RoundEndScreen({gs, roundEnd, players, getName, playerId, solo, onConfirm}) {
   const [confirmed,setConfirmed]=useState(false);
   const sorted=[...gs.players].sort((a,b)=>(roundEnd.tot[b]||0)-(roundEnd.tot[a]||0));
+  const totalRounds = gs.players.length;
+  const isLastRound = (gs.round||1) >= totalRounds;
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.93)',overflowY:'auto',zIndex:200,backdropFilter:'blur(16px)'}}>
       <div style={{maxWidth:520,margin:'0 auto',padding:'28px 16px 40px'}}>
         <div style={{textAlign:'center',marginBottom:22}}>
-          <div style={{fontSize:44,marginBottom:6}}>🏆</div>
-          <h2 style={{color:'#fff',fontSize:24,marginBottom:4}}>라운드 {gs.round} 종료!</h2>
+          <div style={{fontSize:44,marginBottom:6}}>{isLastRound?'🏆':'🎴'}</div>
+          <h2 style={{color:'#fff',fontSize:24,marginBottom:4}}>
+            {isLastRound ? '게임 종료!' : `라운드 ${gs.round} / ${totalRounds} 종료!`}
+          </h2>
           <p style={{color:'#FFE066',fontWeight:800,fontSize:17}}>{getName(roundEnd.wid)} 승리!</p>
         </div>
         {gs.players.map((pid,pi)=>{
           const isW=pid===roundEnd.wid, pColor=PC[pi%PC.length];
-          const hand=gs.hands?.[pid]||[], tokens=gs.scores?.[pid]||0;
+          // roundEnd.hands: finishRound 당시 스냅샷 (gs.hands는 이후 변할 수 있음)
+          const hand=(roundEnd.hands||gs.hands)?.[pid]||[];
+          const tokens=gs.scores?.[pid]||0;
           const cap=gs.capturedCards?.[pid]||0, penalty=hand.length, score=roundEnd.sc[pid]||0;
-          const ownedField=gs.field?.ownerId===pid?gs.field.cards:[];
+          // 승자가 손패 소진으로 이긴 경우: hand가 비어있으므로 카드 없이 소진 메시지만
+          const handEmpty = hand.length === 0;
           return (
             <div key={pid} style={{background:isW?'rgba(0,220,150,0.1)':'rgba(255,255,255,0.05)',
               border:`2px solid ${isW?'#00DC96':'rgba(255,255,255,0.1)'}`,
@@ -309,21 +375,24 @@ function RoundEndScreen({gs, roundEnd, players, getName, playerId, solo, onConfi
                 </div>
                 <div style={{fontSize:20,fontWeight:900,color:score>=0?'#00DC96':'#FF6B6B'}}>{score>=0?'+':''}{score}</div>
               </div>
-              <div style={{display:'flex',gap:7,marginBottom:10,flexWrap:'wrap'}}>
-                {[['🏅 토큰',`+${tokens}`,'#FFE066'],['📥 먹은 패',`+${cap}장`,'#00DC96'],
-                  ...(!isW?[['✗ 손패',`-${penalty}장`,'#FF6B6B']]:[])]
-                  .map(([lb,v,c])=>(
+              <div style={{display:'flex',gap:7,marginBottom:handEmpty?0:8,flexWrap:'wrap'}}>
+                {[
+                  ['🏅 토큰',`+${tokens}`,'#FFE066'],
+                  ['📥 먹은 패',`+${cap}장`,'#00DC96'],
+                  ...(!isW && penalty>0 ? [['✗ 손패',`-${penalty}장`,'#FF6B6B']] : [])
+                ].map(([lb,v,c])=>(
                   <div key={lb} style={{background:'rgba(255,255,255,0.07)',borderRadius:7,padding:'4px 9px',display:'flex',flexDirection:'column',alignItems:'center'}}>
                     <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase'}}>{lb}</span>
                     <span style={{fontSize:13,fontWeight:800,color:c}}>{v}</span>
                   </div>
                 ))}
               </div>
-              {hand.length>0?(
-                <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
-                  {hand.map((c,i)=><SmallCard key={i} card={c} dim={!isW}/>)}
-                </div>
-              ):<p style={{fontSize:12,color:'#00DC96'}}>✓ 손패 소진!</p>}
+              {handEmpty
+                ? <p style={{fontSize:12,color:'#00DC96',marginTop:4}}>✓ 손패 소진!</p>
+                : <div style={{display:'flex',gap:3,flexWrap:'wrap',marginTop:4}}>
+                    {hand.map((c,i)=><SmallCard key={i} card={c} dim={true}/>)}
+                  </div>
+              }
             </div>
           );
         })}
@@ -343,8 +412,12 @@ function RoundEndScreen({gs, roundEnd, players, getName, playerId, solo, onConfi
           })}
         </div>
         {!confirmed
-          ?<button style={{...lBtn('#E8192C','15px',15),width:'100%'}} onClick={()=>{setConfirmed(true);onConfirm();}}>✓ 확인 (다음 라운드 준비)</button>
-          :<div style={{textAlign:'center',color:'rgba(255,255,255,0.4)',fontSize:13,padding:14}}>다른 플레이어 확인 대기 중...</div>}
+          ?<button style={{...lBtn('#E8192C','15px',15),width:'100%'}} onClick={()=>{setConfirmed(true);onConfirm();}}>
+            {isLastRound ? '🏁 게임 종료 확인' : '✓ 확인 (다음 라운드 준비)'}
+          </button>
+          :<div style={{textAlign:'center',color:'rgba(255,255,255,0.4)',fontSize:13,padding:14}}>
+            {isLastRound ? '🎉 수고하셨습니다!' : '다른 플레이어 확인 대기 중...'}
+          </div>}
       </div>
     </div>
   );
@@ -558,6 +631,8 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   const [msg,setMsg]       = useState('');
   const [roundEnd,setRE]   = useState(null);
   const [winBanner,setWB]  = useState(null); // {name} — 4초 WIN 팝업
+  const [endReason,setER]  = useState(null); // {text} — 종료 이유 팝업
+  const [scoreDeltas,setSD]= useState({});   // {pid: {tokens, captured}} — 점수 변화 팝업
   const [aiThinking,setAIT]= useState(false);
   const [scoutIdx,setSIdx] = useState(null);
   const [insertMode,setIM] = useState(false);
@@ -645,22 +720,40 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
     });
   },[roomId,solo]);
 
-  const showAction=(type, actorId, cards, scoutedCardId, onAfterHighlight)=>{
+  const showAction=(type, actorId, cards, scoutedCardId, onAfterHighlight, prevGsSnap, nextGsSnap)=>{
     const actorName = players.find(p=>p.id===actorId)?.name || actorId;
     clearTimeout(noticeTimer.current);
+    // 점수 변화 계산
+    if(prevGsSnap && nextGsSnap) {
+      const deltas = {};
+      players.forEach(p=>{
+        const tokDiff = (nextGsSnap.scores?.[p.id]||0) - (prevGsSnap.scores?.[p.id]||0);
+        const capDiff = (nextGsSnap.capturedCards?.[p.id]||0) - (prevGsSnap.capturedCards?.[p.id]||0);
+        if(tokDiff!==0||capDiff!==0) deltas[p.id]={tok:tokDiff,cap:capDiff};
+      });
+      if(Object.keys(deltas).length>0){
+        setSD(deltas);
+        setTimeout(()=>setSD({}), type==='scout'?6000:4000);
+      }
+    }
     if(type==='scout'){
-      // 1) 마당패 카드 강조 2초 (gs 업데이트는 caller가 딜레이)
       if(scoutedCardId) setFH({cardId:scoutedCardId});
       noticeTimer.current=setTimeout(()=>{
         setFH(null);
-        if(onAfterHighlight) onAfterHighlight(); // gs 업데이트 콜백
-        // 2) 팝업 표시 3초
-        setAN({type:'scout', name:actorName, cards, actorId});
-        noticeTimer.current=setTimeout(()=>setAN(null), 3000);
+        if(onAfterHighlight) onAfterHighlight();
+        setAN({type:'scout', name:actorName, cards, actorId, fading:false});
+        // 2.5초 후 페이드아웃 시작, 0.5초 뒤 제거
+        noticeTimer.current=setTimeout(()=>{
+          setAN(prev=>prev?{...prev,fading:true}:null);
+          setTimeout(()=>setAN(null),500);
+        }, 2500);
       }, 2000);
     } else {
-      setAN({type:'play', name:actorName, cards, actorId});
-      noticeTimer.current=setTimeout(()=>setAN(null), 3000);
+      setAN({type:'play', name:actorName, cards, actorId, fading:false});
+      noticeTimer.current=setTimeout(()=>{
+        setAN(prev=>prev?{...prev,fading:true}:null);
+        setTimeout(()=>setAN(null),500);
+      }, 2500);
     }
   };
 
@@ -710,12 +803,12 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         field:newFieldCards.length>0?{...currGs.field,cards:newFieldCards}:null,
         scores,tokens,currentPlayerIndex:next,scoutedSinceLastPlay:scoutedList};
       const end=checkRoundEnd(ngs);
-      if(end.ended){finishRound(ngs,end.winnerId);return;}
+      if(end.ended){finishRound(ngs,end.winnerId,end.reason);return;}
       setGs(ngs); if(!solo)saveGameState(roomId,ngs);
       setMode('play'); showMsg('⏰ 시간 초과 — 자동 스카우트!');
     } else {
       const r=applyPlay(currGs,playerId,[0]);
-      if(!r.error){const end=checkRoundEnd(r.state);if(end.ended){finishRound(r.state,end.winnerId);return;}setGs(r.state);if(!solo)saveGameState(roomId,r.state);showMsg('⏰ 자동 플레이!');}
+      if(!r.error){const end=checkRoundEnd(r.state);if(end.ended){finishRound(r.state,end.winnerId,end.reason);return;}setGs(r.state);if(!solo)saveGameState(roomId,r.state);showMsg('⏰ 자동 플레이!');}
     }
   };
 
@@ -739,21 +832,18 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         : [fc].filter(Boolean).map(c=>({top:c.flipped?c.bottom:c.top,bottom:c.flipped?c.top:c.bottom,flipped:false,id:c.cardId}));
       const scoutedCardId = action.type==='scout' ? fc?.cardId : null;
       const ngs=result.state;
-
       if(action.type==='scout'){
-        // 스카우트: 강조 2초 (카드 마당에 유지) → gs 업데이트 → 팝업 3초
         showAction('scout', cur, noticeCards, scoutedCardId, ()=>{
           const end=checkRoundEnd(ngs);
-          if(end.ended){finishRound(ngs,end.winnerId);setAIT(false);return;}
+          if(end.ended){finishRound(ngs,end.winnerId,end.reason);setAIT(false);return;}
           setGs(ngs); if(!solo)saveGameState(roomId,ngs);
-          setTimeout(()=>setAIT(false), 3000); // 팝업 3초 후 AI thinking 종료
-        });
+          setTimeout(()=>setAIT(false), 3000);
+        }, gs, ngs);
       } else {
-        // 플레이: 팝업 3초 표시 후 gs 업데이트
-        showAction('play', cur, noticeCards, null, null);
+        showAction('play', cur, noticeCards, null, null, gs, ngs);
         setTimeout(()=>{
           const end=checkRoundEnd(ngs);
-          if(end.ended){finishRound(ngs,end.winnerId);setAIT(false);return;}
+          if(end.ended){finishRound(ngs,end.winnerId,end.reason);setAIT(false);return;}
           setGs(ngs); if(!solo)saveGameState(roomId,ngs);
           setAIT(false);
         }, 3000);
@@ -763,15 +853,27 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   },[gs?.currentPlayerIndex,roundEnd]);
 
   const persist=async ngs=>{setGs(ngs);if(!solo)await saveGameState(roomId,ngs);};
-  const finishRound=(fgs,wid)=>{
-    // 4초 WIN 배너 → 결과 화면
-    setWB({name:getName(wid)});
+  const finishRound=(fgs,wid,reason)=>{
+    const winnerName = players.find(p=>p.id===wid)?.name || wid;
+    // 종료 이유 텍스트
+    const reasonText = reason==='empty_hand'
+      ? `${winnerName}이(가) 손패를 모두 털었습니다!`
+      : `${winnerName}의 플레이를 아무도 막지 못했습니다!`;
+    // 1) 이유 팝업 2.5초
+    setER({text:reasonText});
     setTimeout(()=>{
-      setWB(null);
-      const sc=calculateRoundScore(fgs,wid), tot={...fgs.totalScores};
-      fgs.players.forEach(pid=>{tot[pid]=(tot[pid]||0)+(sc[pid]||0);});
-      setRE({sc,wid,tot});
-    },4000);
+      setER(null);
+      // 2) WIN 배너 3초
+      setWB({name:winnerName});
+      setTimeout(()=>{
+        setWB(null);
+        const sc=calculateRoundScore(fgs,wid), tot={...fgs.totalScores};
+        fgs.players.forEach(pid=>{tot[pid]=(tot[pid]||0)+(sc[pid]||0);});
+        const totalRounds = fgs.players.length; // 플레이어 수만큼 라운드
+        const isLastRound = (fgs.round||1) >= totalRounds;
+        setRE({sc,wid,tot,totalRounds,isLastRound,hands:{...fgs.hands}});
+      },3000);
+    },2500);
   };
 
   const handleFlipConfirm=async()=>{
@@ -795,7 +897,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         setDP(null);
       }
       const end=checkRoundEnd(ngs);
-      if(end.ended) return finishRound(ngs,end.winnerId);
+      if(end.ended) return finishRound(ngs,end.winnerId,end.reason);
       await persist(ngs); setMode('play');
     } catch(e) {
       console.error('handlePlay error',e);
@@ -832,7 +934,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         return;
       }
       const end=checkRoundEnd(r.state);
-      if(end.ended) return finishRound(r.state,end.winnerId);
+      if(end.ended) return finishRound(r.state,end.winnerId,end.reason);
       await persist(r.state); setMode('play');
     } catch(e) {
       console.error('handleInsert error',e);
@@ -1002,12 +1104,12 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
       {/* ── 상대방 패널 (헤더 바로 아래, 1줄) ── */}
       <div style={{position:'absolute',top:52,left:8,right:8,zIndex:10,display:'flex',gap:5,flexWrap:'nowrap'}}>
         {otherPlayers.map(p=>(
-          <OpponentPanel key={p.id} p={p} gs={gs} players={players} isCur={p.id===curId} emoji={liveEmojis[p.id]}/>
+          <OpponentPanel key={p.id} p={p} gs={gs} players={players} isCur={p.id===curId} emoji={liveEmojis[p.id]} scoreDelta={scoreDeltas[p.id]}/>
         ))}
       </div>
 
       {/* ── AI/멀티 행동 알림 — 해당 플레이어 패널 아래 ── */}
-      <ActionNotice action={actionNotice} otherPlayers={otherPlayers} playerId={playerId}/>
+      <ActionNotice action={actionNotice} otherPlayers={otherPlayers}/>
 
       {/* ── 마당패 영역 (중앙 약간 위) ── */}
       {(()=>{
@@ -1058,16 +1160,32 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
       {/* ── 스카우트 애니메이션 ── */}
       {scoutAnim&&<ScoutAnim card={scoutAnim.card} toLabel={scoutAnim.toLabel} onDone={()=>setSA(null)}/>}
 
-      {/* WIN 배너 — position:fixed 로 화면 중앙에 표시 */}
+      {/* ── 라운드 종료 이유 배너 ── */}
+      {endReason&&(
+        <div style={{position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',zIndex:9998,pointerEvents:'none'}}>
+          <div style={{
+            textAlign:'center',
+            background:'rgba(10,5,0,0.92)',
+            border:'1.5px solid rgba(255,255,255,0.2)',
+            borderRadius:20,padding:'18px 32px',
+            backdropFilter:'blur(16px)',
+            animation:'dropDown 0.4s cubic-bezier(0.34,1.4,0.64,1)',
+            maxWidth:320,
+          }}>
+            <div style={{fontSize:28,marginBottom:8}}>🎴</div>
+            <div style={{fontSize:16,fontWeight:800,color:'#fff',lineHeight:1.5}}>{endReason.text}</div>
+          </div>
+        </div>
+      )}
+
+      {/* ── WIN 배너 ── */}
       {winBanner&&(
         <div style={{position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',zIndex:9999,background:'rgba(0,0,0,0.6)',backdropFilter:'blur(8px)'}}>
           <div style={{textAlign:'center',animation:'winPop 0.5s cubic-bezier(0.34,1.56,0.64,1)'}}>
             <div style={{fontSize:36,marginBottom:10}}>🏆</div>
-            <div style={{
-              fontSize:44,fontWeight:900,color:'#FFE066',fontFamily:'Nunito,sans-serif',
+            <div style={{fontSize:44,fontWeight:900,color:'#FFE066',fontFamily:'Nunito,sans-serif',
               textShadow:'0 0 50px rgba(255,224,102,1), 0 4px 24px rgba(0,0,0,0.9)',
-              letterSpacing:'-1px',lineHeight:1,
-            }}>{winBanner.name}</div>
+              letterSpacing:'-1px',lineHeight:1}}>{winBanner.name}</div>
             <div style={{fontSize:24,color:'#fff',fontWeight:700,marginTop:10,letterSpacing:'0.1em',opacity:0.9}}>WIN! 🎉</div>
           </div>
         </div>
@@ -1119,14 +1237,14 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           </div>
         )}
 
-        {/* ── 내 손패 바 — 높이 충분히, 카드 가운데 정렬 ── */}
-        <div style={{background:'linear-gradient(to top,rgba(0,0,0,0.95) 0%,rgba(0,0,0,0.6) 100%)',backdropFilter:'blur(12px)',borderTop:'1px solid rgba(255,255,255,0.1)',padding:'10px 10px 0',paddingBottom:'max(24px, env(safe-area-inset-bottom, 24px))',overflow:'visible'}}>
+        {/* ── 내 손패 바 ── */}
+        <div style={{background:'linear-gradient(to top,rgba(0,0,0,0.95) 0%,rgba(0,0,0,0.55) 100%)',backdropFilter:'blur(12px)',borderTop:'1px solid rgba(255,255,255,0.1)',padding:'8px 10px 0',paddingBottom:'max(18px, env(safe-area-inset-bottom, 18px))',overflow:'visible'}}>
           {/* 내 정보 + 감정표현 버튼 */}
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               <div style={{position:'relative',flexShrink:0}}>
-                <div style={{width:32,height:32,borderRadius:'50%',background:myColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,border:`2.5px solid ${isMyTurn?'#FFE066':'rgba(255,255,255,0.2)'}`}}>{getAvatar(playerId)}</div>
-                {isMyTurn&&<div style={{position:'absolute',bottom:-2,right:-2,width:8,height:8,borderRadius:'50%',background:'#FFE066',border:'1.5px solid #000',animation:'pulse 1s infinite'}}/>}
+                <div style={{width:30,height:30,borderRadius:'50%',background:myColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,border:`2.5px solid ${isMyTurn?'#FFE066':'rgba(255,255,255,0.2)'}`}}>{getAvatar(playerId)}</div>
+                {isMyTurn&&<div style={{position:'absolute',bottom:-2,right:-2,width:7,height:7,borderRadius:'50%',background:'#FFE066',border:'1.5px solid #000',animation:'pulse 1s infinite'}}/>}
                 {myEmoji&&<div style={{position:'absolute',top:-26,left:'50%',transform:'translateX(-50%)',fontSize:20,animation:'emojiPop 0.3s ease',pointerEvents:'none',zIndex:20}}>{myEmoji}</div>}
               </div>
               <div>
@@ -1136,18 +1254,58 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                   </span>
                   <EmojiPanel onSend={handleEmojiSend}/>
                 </div>
-                {isMyTurn&&<div style={{fontSize:10,color:'#FFE066',animation:'pulse 1.5s infinite'}}>← 내 차례!</div>}
               </div>
             </div>
             <div style={{display:'flex',gap:10,alignItems:'center'}}>
-              <div style={{textAlign:'center'}}><div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase'}}>토큰</div><div style={{fontSize:15,fontWeight:900,color:'#FFE066',lineHeight:1}}>{gs.scores?.[playerId]||0}</div></div>
-              <div style={{textAlign:'center'}}><div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase'}}>먹은 패</div><div style={{fontSize:15,fontWeight:900,color:'#00DC96',lineHeight:1}}>{gs.capturedCards?.[playerId]||0}</div></div>
-              <div style={{textAlign:'center'}}><div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase'}}>더블</div><div style={{fontSize:15,fontWeight:900,color:canDouble?'#FFE066':'rgba(255,255,255,0.18)',lineHeight:1}}>{canDouble?'⚡':'✓'}</div></div>
+              {/* 내 토큰 — 델타 팝업 포함 */}
+              <div style={{textAlign:'center',position:'relative'}}>
+                {scoreDeltas[playerId]?.tok!==undefined&&scoreDeltas[playerId].tok!==0&&(
+                  <div style={{position:'absolute',top:-20,left:'50%',transform:'translateX(-50%)',
+                    background:'rgba(8,4,0,0.92)',border:'1px solid #FFE066',borderRadius:6,
+                    padding:'1px 5px',whiteSpace:'nowrap',zIndex:80,pointerEvents:'none',
+                    fontSize:10,fontWeight:900,color:'#FFE066',fontFamily:'Nunito,sans-serif',
+                    animation:'floatUp 0.4s ease'}}>
+                    {scoreDeltas[playerId].tok>0?'+':''}{scoreDeltas[playerId].tok}점
+                  </div>
+                )}
+                <div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase'}}>토큰</div>
+                <div style={{fontSize:14,fontWeight:900,color:'#FFE066',lineHeight:1}}>{gs.scores?.[playerId]||0}</div>
+              </div>
+              {/* 내 먹은패 — 델타 팝업 포함 */}
+              <div style={{textAlign:'center',position:'relative'}}>
+                {scoreDeltas[playerId]?.cap!==undefined&&scoreDeltas[playerId].cap!==0&&(
+                  <div style={{position:'absolute',top:-20,left:'50%',transform:'translateX(-50%)',
+                    background:'rgba(8,4,0,0.92)',border:'1px solid #00DC96',borderRadius:6,
+                    padding:'1px 5px',whiteSpace:'nowrap',zIndex:80,pointerEvents:'none',
+                    fontSize:10,fontWeight:900,color:'#00DC96',fontFamily:'Nunito,sans-serif',
+                    animation:'floatUp 0.4s ease'}}>
+                    {scoreDeltas[playerId].cap>0?'+':''}{scoreDeltas[playerId].cap}장
+                  </div>
+                )}
+                <div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase'}}>먹은 패</div>
+                <div style={{fontSize:14,fontWeight:900,color:'#00DC96',lineHeight:1}}>{gs.capturedCards?.[playerId]||0}</div>
+              </div>
+              <div style={{textAlign:'center'}}><div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase'}}>더블</div><div style={{fontSize:14,fontWeight:900,color:canDouble?'#FFE066':'rgba(255,255,255,0.18)',lineHeight:1}}>{canDouble?'⚡':'✓'}</div></div>
             </div>
           </div>
 
           {/* ── 손패 — 팬 레이아웃 + 좌우 스크롤 ── */}
-          <div style={{position:'relative', paddingTop:32}}>
+          <div style={{position:'relative', paddingTop: isMyTurn && !insertMode ? 34 : 24}}>
+            {/* ▼ 내 차례 배너 */}
+            {isMyTurn && !insertMode && (
+              <div style={{
+                position:'absolute', top:0, left:'50%', transform:'translateX(-50%)',
+                display:'flex', alignItems:'center', gap:5, zIndex:20, pointerEvents:'none',
+                background:'rgba(255,224,102,0.14)', border:'1.5px solid rgba(255,224,102,0.7)',
+                borderRadius:20, padding:'3px 16px',
+                animation:'pulse 1.5s ease-in-out infinite',
+                backdropFilter:'blur(6px)', whiteSpace:'nowrap',
+              }}>
+                <span style={{fontSize:11,color:'#FFE066'}}>▼</span>
+                <span style={{fontSize:12,fontWeight:900,color:'#FFE066',letterSpacing:'0.08em'}}>내 차례!</span>
+                <span style={{fontSize:11,color:'#FFE066'}}>▼</span>
+              </div>
+            )}
             <div className="hand-scroll" style={{
               overflowX:'auto', overflowY:'visible',
               WebkitOverflowScrolling:'touch', touchAction:'pan-x',
@@ -1253,7 +1411,8 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         @keyframes emojiPop{0%{opacity:0;transform:translate(-50%,4px) scale(0.5)}70%{transform:translate(-50%,-2px) scale(1.2)}100%{opacity:1;transform:translate(-50%,0) scale(1)}}
         @keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
         @keyframes winPop{0%{opacity:0;transform:scale(0.4) translateY(20px)}60%{transform:scale(1.12) translateY(-4px)}100%{opacity:1;transform:scale(1) translateY(0)}}
-        @keyframes dropDown{0%{opacity:0;transform:translateY(-12px) scale(0.9)}100%{opacity:1;transform:translateY(0) scale(1)}}
+        @keyframes dropDown{0%{opacity:0;transform:translateY(-14px) scale(0.92)}100%{opacity:1;transform:translateY(0) scale(1)}}
+        @keyframes floatUp{0%{opacity:0;transform:translateX(-50%) translateY(4px)}40%{opacity:1}100%{opacity:1;transform:translateX(-50%) translateY(0)}}
         *{box-sizing:border-box}
         .hand-scroll{overflow-x:auto!important;overflow-y:visible!important;-webkit-overflow-scrolling:touch;touch-action:pan-x;}
         .hand-scroll::-webkit-scrollbar{height:3px}
