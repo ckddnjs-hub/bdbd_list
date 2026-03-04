@@ -1318,7 +1318,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         )}
 
         {/* ── 내 손패 바 ── */}
-        <div style={{background:'linear-gradient(to top,rgba(0,0,0,0.95) 0%,rgba(0,0,0,0.55) 100%)',backdropFilter:'blur(12px)',borderTop:'1px solid rgba(255,255,255,0.1)',padding:'8px 10px 0',paddingBottom:'max(18px, env(safe-area-inset-bottom, 18px))',overflow:'visible'}}>
+        <div style={{background:'linear-gradient(to top,rgba(0,0,0,0.95) 0%,rgba(0,0,0,0.55) 100%)',backdropFilter:'blur(12px)',borderTop:'1px solid rgba(255,255,255,0.1)',padding:'6px 10px 0',paddingBottom:'max(env(safe-area-inset-bottom, 8px), 8px)',overflow:'visible'}}>
           {/* 내 정보 + 감정표현 버튼 */}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -1382,11 +1382,11 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           </div>
 
           {/* ── 손패 — 팬 레이아웃 + 좌우 스크롤 ── */}
-          <div style={{position:'relative', paddingTop:24}}>
+          <div style={{position:'relative', paddingTop:20, marginBottom:36}}>
             <div className="hand-scroll" style={{
               overflowX:'auto', overflowY:'visible',
               WebkitOverflowScrolling:'touch', touchAction:'pan-x',
-              paddingBottom:8,
+              paddingBottom:4,
             }}>
             {insertMode?(
               /* 삽입 모드 */
@@ -1411,7 +1411,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
               return (
                 <div style={{
                   position:'relative',
-                  height:CARD_H+20,
+                  height:CARD_H+8,
                   minWidth: fanW,
                   width:'100%',
                 }}>
