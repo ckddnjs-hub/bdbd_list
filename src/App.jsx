@@ -65,17 +65,14 @@ function CardFace({top,bot,w,h,fs,border,shadow,style={},onClick}) {
         }}>{top}</span>
         <div style={{position:'absolute',bottom:0,left:0,right:0,height:2,background:'rgba(0,0,0,0.15)'}}/>
       </div>
-      {/* 아래 숫자 — 뒤집어서 봤을 때 왼쪽에 보임
-          원리: bottom-left에 놓고 rotate(180deg, transformOrigin=left bottom)
-          → 뒤집으면 top-right 위치에 있는데 카드 자체가 뒤집히므로 사용자 눈엔 왼쪽 상단에 보임 */}
-      <div style={{flex:1,background:cb.bg,color:cb.text,position:'relative'}}>
+      {/* 아래 절반 전체를 180도 회전 → 뒤집어보면 숫자가 왼쪽 위에 보임 */}
+      <div style={{flex:1,background:cb.bg,color:cb.text,
+        display:'flex',alignItems:'flex-start',justifyContent:'flex-start',
+        padding:'3px 0 0 5px',
+        transform:'rotate(180deg)'}}>
         <span style={{
-          position:'absolute',bottom:3,left:5,
           fontFamily:"'Helvetica Neue',Arial,sans-serif",
-          fontSize:fs,fontWeight:500,lineHeight:1,
-          display:'block',userSelect:'none',
-          transform:'rotate(180deg)',
-          transformOrigin:'left bottom',
+          fontSize:fs,fontWeight:500,lineHeight:1,userSelect:'none',
         }}>{bot}</span>
       </div>
     </div>
