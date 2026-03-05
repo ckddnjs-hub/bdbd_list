@@ -687,7 +687,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
             // 플레이 감지: field 주인이 actorId로 바뀜
             if(newGs.field?.ownerId===actorId&&newGs.field?.cards?.length>0){
               const cards=newGs.field.cards.map(fc=>({top:fc.value??fc.top,bottom:fc.bottom??fc.top,flipped:fc.flipped??false,id:fc.cardId}));
-              showAction('play', actorId, cards, null, null);
+              showAction('play', actorId, cards, null, null, prev, newGs);
               prevGsRef.current=newGs;
               setGs(newGs);
             }
@@ -696,15 +696,13 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
               const scouted=prev.field?.cards?.find(fc=>!newGs.field?.cards?.find(nc=>nc.cardId===fc.cardId));
               if(scouted){
                 const card={top:scouted.flipped?scouted.bottom:scouted.top,bottom:scouted.flipped?scouted.top:scouted.bottom,flipped:false,id:scouted.cardId};
-                // ghostField: prev 마당패를 보여주면서 강조 (gs는 아직 업데이트 안 함)
                 setGF(prev.field);
                 showAction('scout', actorId, [card], scouted.cardId, ()=>{
-                  // 강조 2초 후 gs 업데이트 → 카드 사라짐
                   setGF(null);
                   prevGsRef.current=newGs;
                   setGs(newGs);
-                });
-                return; // setGs(newGs) 건너뜀
+                }, prev, newGs);
+                return;
               }
               prevGsRef.current=newGs;
               setGs(newGs);
@@ -968,9 +966,18 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
     try {
       const fc=gs.field?.cards[fi];
       if(!fc){showMsg('❌ 카드 없음');setIM(false);setSIdx(null);return;}
+      const prevGs=gs;
       const r=applyScout(gs,playerId,fi,insertIdx,shouldFlip);
       if(r.error){showMsg('❌ '+r.error);setIM(false);setSIdx(null);return;}
       setSIdx(null);setIM(false);setFH(null);
+      // 내 스카우트: 토큰 변화 델타 표시 (마당패 주인이 토큰 획득)
+      const ngs=r.state;
+      const deltas={};
+      players.forEach(p=>{
+        const tokDiff=(ngs.scores?.[p.id]||0)-(prevGs.scores?.[p.id]||0);
+        if(tokDiff!==0) deltas[p.id]={tok:tokDiff,cap:0};
+      });
+      if(Object.keys(deltas).length>0){setSD(deltas);setTimeout(()=>setSD({}),3000);}
       const animTop=shouldFlip?(fc.flipped?fc.top:fc.bottom):(fc.flipped?fc.bottom:fc.top);
       const animBot=shouldFlip?(fc.flipped?fc.bottom:fc.top):(fc.flipped?fc.top:fc.bottom);
       setSA({card:{top:animTop,bottom:animBot,flipped:false},toLabel:getName(playerId)});
