@@ -658,6 +658,21 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   const timerRef    = useRef(null);
   const turnTimRef  = useRef(null);
   const noticeTimer = useRef(null);
+  const handScrollRef = useRef(null);
+
+  // PC 마우스 휠로 가로 스크롤
+  useEffect(()=>{
+    const el = handScrollRef.current;
+    if(!el) return;
+    const onWheel = e=>{
+      if(Math.abs(e.deltaY) > Math.abs(e.deltaX)){
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener('wheel', onWheel, {passive:false});
+    return ()=>el.removeEventListener('wheel', onWheel);
+  });
 
   const players  = solo ? soloPlayers : Object.values(room?.players||{});
   const myHand   = gs.hands?.[playerId]||[];
@@ -1399,7 +1414,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
 
           {/* ── 손패 — 팬 레이아웃 + 좌우 스크롤 ── */}
           <div style={{position:'relative', paddingTop:28, marginBottom:60}}>
-            <div className="hand-scroll" style={{
+            <div ref={handScrollRef} className="hand-scroll" style={{
               overflowX:'auto', overflowY:'visible',
               WebkitOverflowScrolling:'touch', touchAction:'pan-x',
               paddingTop:28, paddingBottom:4,
