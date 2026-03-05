@@ -87,16 +87,18 @@ function SmallCard({card, dim=false}) {
 }
 
 // ─── 마당패 카드 ──────────────────────────────────────────────
-function FieldCard({fc, scoutable, onScout, left=0, zIndex=0, totalCards=1, isOpen, onOpen, highlighted=false}) {
+function FieldCard({fc, scoutable, onScout, left=0, zIndex=0, totalCards=1, isOpen, onOpen, highlighted=false, highlightFlipped=false}) {
   const [flippedView,setFlippedView]=useState(false);
-  // 팝업이 닫히거나 스카우트 모드 해제 시 뒤집기 상태 리셋
-  useEffect(()=>{ if(!isOpen||!scoutable) setFlippedView(false); },[isOpen,scoutable]);
+  // 팝업이 닫히거나 스카우트 모드 해제 시 뒤집기 상태 리셋 (highlighted 중엔 유지)
+  useEffect(()=>{ if(!isOpen&&!highlighted) setFlippedView(false); },[isOpen,highlighted]);
+  useEffect(()=>{ if(!scoutable&&!highlighted) setFlippedView(false); },[scoutable,highlighted]);
   const rawTop=fc.flipped?fc.bottom:fc.top, rawBot=fc.flipped?fc.top:fc.bottom;
-  const dTop=flippedView?rawBot:rawTop, dBot=flippedView?rawTop:rawBot;
+  // highlighted 상태: highlightFlipped(shouldFlip) 기준으로 표시
+  const displayFlipped = highlighted ? highlightFlipped : flippedView;
+  const dTop=displayFlipped?rawBot:rawTop, dBot=displayFlipped?rawTop:rawBot;
   const W=54,H=82,FS=20;
   const mid=(totalCards-1)/2, rot=(zIndex-mid)*2.5;
   const active=scoutable&&isOpen;
-  // highlighted: 스카우트 강조 — 위로 올라오며 노란 테두리
   const liftY = highlighted ? -24 : (active ? -14 : 0);
   return (
     <div style={{position:'absolute',left,bottom:0,zIndex:active?999:highlighted?500:zIndex}}>
@@ -121,7 +123,7 @@ function FieldCard({fc, scoutable, onScout, left=0, zIndex=0, totalCards=1, isOp
               color:flippedView?'#1a1a1a':'#eee',fontFamily:'Nunito,sans-serif',fontWeight:700}}>
             ↕ 뒤집음{flippedView?' ✓':''}
           </button>
-          <button onClick={e=>{e.stopPropagation();onScout(flippedView);setFlippedView(false);onOpen(false);}}
+          <button onClick={e=>{e.stopPropagation();onScout(flippedView);onOpen(false);}}
             style={{fontSize:11,padding:'4px 8px',border:'none',borderRadius:5,cursor:'pointer',
               background:'#FFE066',color:'#1a1a1a',fontFamily:'Nunito,sans-serif',fontWeight:800}}>
             가져오기
@@ -1221,7 +1223,8 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                     isOpen={openFieldIdx===idx}
                     onOpen={()=>setOFI(prev=>prev===idx?null:idx)}
                     onScout={sf=>{handleSelectField(idx,sf);setOFI(null);}}
-                    highlighted={isHighlighted}/>
+                    highlighted={isHighlighted}
+                    highlightFlipped={isHighlighted&&scoutIdx?.shouldFlip}/>
                 );
               })}
             </div>
