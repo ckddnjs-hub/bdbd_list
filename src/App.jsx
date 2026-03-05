@@ -801,7 +801,8 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   },[gs?.currentPlayerIndex, gs?.turnTimeout, roundEnd, winBanner]);
 
   const autoScoutOrPlay=()=>{
-    // 마당패 있으면 마지막 카드 스카우트, 없으면 첫 카드 플레이
+    // 삽입 모드 중이면 먼저 취소
+    setSIdx(null); setIM(false); setFH(null);
     const currGs=gs; // closure
     if(currGs.field&&currGs.field.cards.length>0){
       const fi=currGs.field.cards.length-1;
@@ -1386,7 +1387,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           </div>
 
           {/* ── 손패 — 팬 레이아웃 + 좌우 스크롤 ── */}
-          <div style={{position:'relative', paddingTop:28, marginBottom:36}}>
+          <div style={{position:'relative', paddingTop:28, marginBottom:80}}>
             <div className="hand-scroll" style={{
               overflowX:'auto', overflowY:'visible',
               WebkitOverflowScrolling:'touch', touchAction:'pan-x',
