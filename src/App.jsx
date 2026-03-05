@@ -1382,11 +1382,11 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           </div>
 
           {/* ── 손패 — 팬 레이아웃 + 좌우 스크롤 ── */}
-          <div style={{position:'relative', paddingTop:20, marginBottom:36}}>
+          <div style={{position:'relative', paddingTop:28, marginBottom:36}}>
             <div className="hand-scroll" style={{
               overflowX:'auto', overflowY:'visible',
               WebkitOverflowScrolling:'touch', touchAction:'pan-x',
-              paddingBottom:4,
+              paddingTop:28, paddingBottom:4,
             }}>
             {insertMode?(
               /* 삽입 모드 */
@@ -1406,12 +1406,12 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
               /* 팬 레이아웃 — 카드가 적을 때 가운데 정렬 */
               const n=myHand.length;
               const step=CARD_W*0.52;
-              const fanW=step*(n-1)+CARD_W+24; // 총 너비
+              const fanW=step*(n-1)+CARD_W+24;
               const mid=(n-1)/2;
               return (
                 <div style={{
                   position:'relative',
-                  height:CARD_H+8,
+                  height:CARD_H+32,   // 선택 시 -20px 올라가도 안 잘리도록 여유 확보
                   minWidth: fanW,
                   width:'100%',
                 }}>
