@@ -801,31 +801,35 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
   },[gs?.currentPlayerIndex, gs?.turnTimeout, roundEnd, winBanner]);
 
   const autoScoutOrPlay=()=>{
-    // 삽입 모드 중이면 먼저 취소
-    setSIdx(null); setIM(false); setFH(null);
-    const currGs=gs; // closure
-    if(currGs.field&&currGs.field.cards.length>0){
-      const fi=currGs.field.cards.length-1;
-      const fc=currGs.field.cards[fi];
-      const newCard={id:fc.cardId??fc.id,top:fc.top,bottom:fc.bottom,flipped:fc.flipped};
-      const hand=[...(currGs.hands[playerId]||[]),newCard];
-      const newFieldCards=currGs.field.cards.slice(0,-1);
-      let tokens=currGs.tokens; const scores={...currGs.scores};
-      if(tokens>0){tokens--;scores[currGs.field.ownerId]=(scores[currGs.field.ownerId]||0)+1;}
-      const next=(currGs.currentPlayerIndex+1)%currGs.players.length;
-      const scoutedList=[...(currGs.scoutedSinceLastPlay||[])];
-      if(!scoutedList.includes(playerId)) scoutedList.push(playerId);
-      const ngs={...currGs,hands:{...currGs.hands,[playerId]:hand},
-        field:newFieldCards.length>0?{...currGs.field,cards:newFieldCards}:null,
-        scores,tokens,currentPlayerIndex:next,scoutedSinceLastPlay:scoutedList};
-      const end=checkRoundEnd(ngs);
-      if(end.ended){finishRound(ngs,end.winnerId,end.reason);return;}
-      setGs(ngs); if(!solo)saveGameState(roomId,ngs);
-      setMode('play'); showMsg('⏰ 시간 초과 — 자동 스카우트!');
-    } else {
-      const r=applyPlay(currGs,playerId,[0]);
-      if(!r.error){const end=checkRoundEnd(r.state);if(end.ended){finishRound(r.state,end.winnerId,end.reason);return;}setGs(r.state);if(!solo)saveGameState(roomId,r.state);showMsg('⏰ 자동 플레이!');}
-    }
+    // 삽입 모드 / 스카우트 상태 완전 초기화
+    setSIdx(null); setIM(false); setFH(null); setDP(null); setSel([]);
+    setMode('play');
+    // 약간 지연 후 실행 — state 리셋이 먼저 반영되도록
+    setTimeout(()=>{
+      const currGs=gs; // closure
+      if(currGs.field&&currGs.field.cards.length>0){
+        const fi=currGs.field.cards.length-1;
+        const fc=currGs.field.cards[fi];
+        const newCard={id:fc.cardId??fc.id,top:fc.top,bottom:fc.bottom,flipped:fc.flipped};
+        const hand=[...(currGs.hands[playerId]||[]),newCard];
+        const newFieldCards=currGs.field.cards.slice(0,-1);
+        let tokens=currGs.tokens; const scores={...currGs.scores};
+        if(tokens>0){tokens--;scores[currGs.field.ownerId]=(scores[currGs.field.ownerId]||0)+1;}
+        const next=(currGs.currentPlayerIndex+1)%currGs.players.length;
+        const scoutedList=[...(currGs.scoutedSinceLastPlay||[])];
+        if(!scoutedList.includes(playerId)) scoutedList.push(playerId);
+        const ngs={...currGs,hands:{...currGs.hands,[playerId]:hand},
+          field:newFieldCards.length>0?{...currGs.field,cards:newFieldCards}:null,
+          scores,tokens,currentPlayerIndex:next,scoutedSinceLastPlay:scoutedList};
+        const end=checkRoundEnd(ngs);
+        if(end.ended){finishRound(ngs,end.winnerId,end.reason);return;}
+        setGs(ngs); if(!solo)saveGameState(roomId,ngs);
+        showMsg('⏰ 시간 초과 — 자동 스카우트!');
+      } else {
+        const r=applyPlay(currGs,playerId,[0]);
+        if(!r.error){const end=checkRoundEnd(r.state);if(end.ended){finishRound(r.state,end.winnerId,end.reason);return;}setGs(r.state);if(!solo)saveGameState(roomId,r.state);showMsg('⏰ 자동 플레이!');}
+      }
+    }, 50);
   };
 
   // AI 자동 실행
@@ -1387,7 +1391,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
           </div>
 
           {/* ── 손패 — 팬 레이아웃 + 좌우 스크롤 ── */}
-          <div style={{position:'relative', paddingTop:28, marginBottom:80}}>
+          <div style={{position:'relative', paddingTop:28, marginBottom:60}}>
             <div className="hand-scroll" style={{
               overflowX:'auto', overflowY:'visible',
               WebkitOverflowScrolling:'touch', touchAction:'pan-x',
@@ -1405,31 +1409,20 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                   previewTop = shouldFlip ? rawBot : rawTop;
                   previewBot = shouldFlip ? rawTop : rawBot;
                 }
-                // 삽입 위치 버튼: 카드 미리보기를 반투명하게 떠있게
+                // 삽입 위치: 카드 없이 점선 영역만 표시 (카드 가로 1/2 너비)
                 const PreviewInsertBtn = ({onClick}) => (
                   <div onClick={onClick} style={{
-                    flexShrink:0, cursor:'pointer', position:'relative',
-                    width: fc ? CARD_W : 12,
+                    flexShrink:0, cursor:'pointer',
+                    width: Math.round(CARD_W * 0.55),
                     height: CARD_H,
-                    display:'flex', alignItems:'flex-end', justifyContent:'center',
-                  }}>
-                    {fc && previewTop !== null ? (
-                      <div style={{opacity:0.45, transition:'opacity 0.15s'}}
-                        onMouseEnter={e=>e.currentTarget.style.opacity='0.85'}
-                        onMouseLeave={e=>e.currentTarget.style.opacity='0.45'}>
-                        <CardFace top={previewTop} bot={previewBot}
-                          w={CARD_W} h={CARD_H} fs={CARD_FS}
-                          border="2px dashed #FFE066"
-                          shadow="0 0 12px rgba(255,224,102,0.5)"/>
-                      </div>
-                    ) : (
-                      <div style={{
-                        width:10, height:CARD_H,
-                        background:'rgba(0,220,150,0.12)',
-                        border:'2px dashed #00DC96', borderRadius:6,
-                      }}/>
-                    )}
-                  </div>
+                    background:'rgba(0,220,150,0.06)',
+                    border:'2px dashed rgba(0,220,150,0.55)',
+                    borderRadius:7,
+                    transition:'background 0.13s, border-color 0.13s',
+                  }}
+                    onMouseEnter={e=>{e.currentTarget.style.background='rgba(0,220,150,0.18)';e.currentTarget.style.borderColor='rgba(0,220,150,0.9)';}}
+                    onMouseLeave={e=>{e.currentTarget.style.background='rgba(0,220,150,0.06)';e.currentTarget.style.borderColor='rgba(0,220,150,0.55)';}}
+                  />
                 );
                 return (
                   <div style={{display:'flex',alignItems:'flex-end',paddingLeft:8,paddingRight:16,minWidth:'max-content'}}>
