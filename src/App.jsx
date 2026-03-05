@@ -758,14 +758,15 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         }, 2500);
       }, 2000);
     } else {
-      // 플레이: cap 델타(먹은패)는 즉시, tok은 없음(플레이로 토큰 변화 없음)
-      if(Object.keys(deltas).length>0){
-        setSD(deltas);
-        setTimeout(()=>setSD({}), 3500);
-      }
+      // 플레이: 팝업 먼저 → 팝업 페이드아웃 시작 시점(2.5초)에 cap 델타 표시
       setAN({type:'play', name:actorName, cards, actorId, fading:false});
       noticeTimer.current=setTimeout(()=>{
         setAN(prev=>prev?{...prev,fading:true}:null);
+        // 마당패 교체 시점 = 팝업 사라질 때 → cap 델타 함께 표시
+        if(Object.keys(deltas).length>0){
+          setSD(deltas);
+          setTimeout(()=>setSD({}), 2500);
+        }
         setTimeout(()=>setAN(null),500);
       }, 2500);
     }
