@@ -187,7 +187,7 @@ function OpponentPanel({p, gs, players, isCur, emoji, scoreDelta}) {
           whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',flex:1,minWidth:0}}>
           {p.name}
         </span>
-        {dbl&&<span style={{fontSize:10}} title="역제안 가능">⚡</span>}
+        {dbl&&<span style={{fontSize:10}} title="가로채기 가능">⚡</span>}
       </div>
       {/* 미니 스탯 — 협업포인트/인용건수 위에 델타 팝업 */}
       <div style={{display:'flex',gap:3}}>
@@ -356,7 +356,7 @@ function RoundEndScreen({gs, roundEnd, players, getName, playerId, solo, onConfi
           <h2 style={{color:'#fff',fontSize:24,marginBottom:4}}>
             {isLastRound ? '최종 평가 종료!' : `${gs.round}차 평가 / ${totalRounds}라운드 종료!`}
           </h2>
-          <p style={{color:'#FFE066',fontWeight:800,fontSize:17}}>{getName(roundEnd.wid)} 발탁승진! 🎖</p>
+          <p style={{color:'#FFE066',fontWeight:800,fontSize:17}}>{getName(roundEnd.wid)} 성과급 S! 🎖</p>
         </div>
         {playersByRoundScore.map((pid)=>{
           const origPi=gs.players.indexOf(pid);
@@ -516,9 +516,9 @@ function Lobby({onEnter}) {
       
             {icon:'🚨',title:'절대 규칙',items:['스케줄 순서 변경 및 섞기 절대 금지','스케줄 뒤집기: 평가 시작 직전 1회, 전체 뒤집기만 가능']},
             {icon:'🎯',title:'내 발표차례 액션 (3가지 중 택 1)',items:[
-              '1. 성과보고 — 테이블보다 강한 성과 제출. 기존 보고서는 내가 가져옴 (건당 +1점)',
-              '2. 인용 — 양끝 보고서 1건 내 스케줄에 삽입. 원작자에게 협업포인트 +1점',
-              '3. 역제안 — 평가당 1회, 인용 후 즉시 성과보고',
+              '1. 성과보고 — 테이블 위 성과보다 강한 성과 제출. 기존 보고서(성과)는 내가 가져옴 (건당 +1점)',
+              '2. 인용 — 양끝 보고서 1건 내 스케줄에 삽입. 원작자에게 협업P +1점',
+              '3. 가로채기 — 평가당 1회, 남의 자료 쏙 빼먹고, 즉시 성과보고',
             ]},
             {icon:'📊',title:'성과 강약 (평가 기준)',items:[
               '① 건수 많을수록 무조건 승리 — 3건 > 2건 > 1건',
@@ -1313,18 +1313,18 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
 
       {/* ── 하단 스케줄 영역 ── */}
       <div style={{position:'absolute',bottom:0,left:0,right:0,zIndex:10}}>
-        {/* 역제안 배너 */}
+        {/* 가로채기 배너 */}
         {doublePhase==='scouted'&&isMyTurn&&(
           <div style={{display:'flex',justifyContent:'center',marginBottom:5}}>
             <div style={{background:'rgba(255,184,0,0.18)',border:'1.5px solid #FFB800',borderRadius:10,padding:'5px 16px',backdropFilter:'blur(8px)'}}>
-              <span style={{fontSize:12,color:'#FFE066',fontWeight:800}}>🔥 역제안 — 지금 바로 성과보고!</span>
+              <span style={{fontSize:12,color:'#FFE066',fontWeight:800}}>🔥 가로채기 — 지금 바로 성과보고!</span>
             </div>
           </div>
         )}
         {/* 액션 버튼 */}
         {isMyTurn&&!insertMode&&doublePhase===null&&(
           <div style={{display:'flex',justifyContent:'center',gap:6,marginBottom:5,padding:'0 10px'}}>
-            {[['play','📊','성과보고',true],['scout','📎','인용',canScout],['double','🔥','역제안',canDouble]].map(([m,ic,nm,en])=>(
+            {[['play','📊','성과보고',true],['scout','📎','인용',canScout],['double','🔥','가로채기',canDouble]].map(([m,ic,nm,en])=>(
               <button key={m} onClick={()=>{if(en){setMode(m);setSel([]);setOFI(null);}}} style={{
                 background:mode===m?'rgba(232,25,44,0.85)':'rgba(0,0,0,0.55)',
                 border:`2px solid ${mode===m?'#E8192C':'rgba(255,255,255,0.13)'}`,
@@ -1417,7 +1417,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
                 <div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase',letterSpacing:'-0.03em'}}>인용</div>
                 <div style={{fontSize:14,fontWeight:900,color:'#00DC96',lineHeight:1}}>{gs.capturedCards?.[playerId]||0}</div>
               </div>
-              <div style={{textAlign:'center'}}><div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase',letterSpacing:'-0.03em'}}>역제안</div><div style={{fontSize:14,fontWeight:900,color:canDouble?'#FFE066':'rgba(255,255,255,0.18)',lineHeight:1}}>{canDouble?'⚡':'✓'}</div></div>
+              <div style={{textAlign:'center'}}><div style={{fontSize:8,color:'rgba(255,255,255,0.35)',textTransform:'uppercase',letterSpacing:'-0.03em'}}>가로채기</div><div style={{fontSize:14,fontWeight:900,color:canDouble?'#FFE066':'rgba(255,255,255,0.18)',lineHeight:1}}>{canDouble?'⚡':'✓'}</div></div>
             </div>
           </div>
 
@@ -1534,7 +1534,7 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,backdropFilter:'blur(8px)'}} onClick={()=>setSH(false)}>
           <div style={{background:'rgba(20,10,0,0.97)',border:'1px solid rgba(255,200,80,0.3)',borderRadius:18,padding:24,maxWidth:340,width:'90%'}} onClick={e=>e.stopPropagation()}>
             <h3 style={{color:'#FFE066',marginBottom:13,fontSize:16}}>게임 방법</h3>
-            {[['📊','A. 성과보고','테이블보다 강한 성과 제출'],['📎','B. 인용','양끝 보고서 클릭→ 발췌'],['🔥','C. 역제안','인용 후 즉시 성과보고'],['😊','감정표현','이름 옆 버튼 → 이모지 선택']].map(([ic,nm,ds])=>(
+            {[['📊','A. 성과보고','테이블보다 강한 성과 제출'],['📎','B. 인용','양끝 보고서 클릭→ 발췌'],['🔥','C. 가로채기','인용 후 즉시 성과보고'],['😊','감정표현','이름 옆 버튼 → 이모지 선택']].map(([ic,nm,ds])=>(
               <div key={nm} style={{display:'flex',gap:10,marginBottom:11,alignItems:'flex-start'}}>
                 <span style={{fontSize:19,flexShrink:0}}>{ic}</span>
                 <div><div style={{fontWeight:800,color:'#fff',fontSize:13}}>{nm}</div><div style={{color:'rgba(255,255,255,0.45)',fontSize:11,marginTop:1}}>{ds}</div></div>
