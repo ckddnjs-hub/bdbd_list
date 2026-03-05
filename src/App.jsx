@@ -1389,19 +1389,58 @@ function GameBoard({roomId, playerId, room, gameState:initGs, solo, soloPlayers,
               paddingTop:28, paddingBottom:4,
             }}>
             {insertMode?(
-              /* 삽입 모드 */
-              <div style={{display:'flex',alignItems:'flex-end',paddingLeft:8,paddingRight:16,minWidth:'max-content'}}>
-                <InsertBtn onClick={()=>handleInsert(0)}/>
-                {myHand.map((c,i)=>(
-                  <div key={c.id||i} style={{display:'flex',alignItems:'flex-end',flexShrink:0}}>
-                    <div style={{width:CARD_W,flexShrink:0}}>
-                      <CardFace top={getTopValue(c)} bot={getBottomValue(c)} w={CARD_W} h={CARD_H} fs={CARD_FS}
-                        border="1.5px solid rgba(255,255,255,0.22)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>
-                    </div>
-                    <InsertBtn onClick={()=>handleInsert(i+1)}/>
+              /* 삽입 모드 — 마당패에서 가져올 카드를 shouldFlip 적용해서 미리보기로 떠있게 표시 */
+              (()=>{
+                // 가져올 카드 미리보기 계산
+                const fc = scoutIdx ? gs.field?.cards[scoutIdx.fi] : null;
+                const shouldFlip = scoutIdx?.shouldFlip;
+                let previewTop = null, previewBot = null;
+                if(fc) {
+                  const rawTop = fc.flipped ? fc.bottom : fc.top;
+                  const rawBot = fc.flipped ? fc.top : fc.bottom;
+                  previewTop = shouldFlip ? rawBot : rawTop;
+                  previewBot = shouldFlip ? rawTop : rawBot;
+                }
+                return (
+                  <div style={{display:'flex',alignItems:'flex-end',paddingLeft:8,paddingRight:16,minWidth:'max-content',position:'relative'}}>
+                    <InsertBtn onClick={()=>handleInsert(0)}/>
+                    {myHand.map((c,i)=>(
+                      <div key={c.id||i} style={{display:'flex',alignItems:'flex-end',flexShrink:0,position:'relative'}}>
+                        <div style={{width:CARD_W,flexShrink:0}}>
+                          <CardFace top={getTopValue(c)} bot={getBottomValue(c)} w={CARD_W} h={CARD_H} fs={CARD_FS}
+                            border="1.5px solid rgba(255,255,255,0.22)" shadow="0 2px 8px rgba(0,0,0,0.5)"/>
+                        </div>
+                        <div style={{position:'relative'}}>
+                          {/* 삽입 버튼 위에 가져올 카드 미리보기 (마지막 InsertBtn 제외하고 각 버튼 위 고정) */}
+                          <InsertBtn onClick={()=>handleInsert(i+1)}/>
+                        </div>
+                      </div>
+                    ))}
+                    {/* 가져올 카드 미리보기 — 손패 위에 고정으로 떠서 보여줌 */}
+                    {fc && previewTop !== null && (
+                      <div style={{
+                        position:'absolute', top:-CARD_H-10, left:'50%', transform:'translateX(-50%)',
+                        zIndex:50, pointerEvents:'none',
+                        filter:'drop-shadow(0 0 10px rgba(255,224,102,0.8))',
+                        animation:'dropDown 0.35s cubic-bezier(0.34,1.4,0.64,1)',
+                      }}>
+                        <div style={{position:'relative'}}>
+                          <CardFace top={previewTop} bot={previewBot} w={CARD_W+6} h={CARD_H+8} fs={CARD_FS+1}
+                            border="2.5px solid #FFE066"
+                            shadow="0 0 20px rgba(255,224,102,0.9), 0 6px 18px rgba(0,0,0,0.7)"/>
+                          <div style={{
+                            position:'absolute', bottom:-20, left:'50%', transform:'translateX(-50%)',
+                            fontSize:9, fontWeight:800, color:'#FFE066', whiteSpace:'nowrap',
+                            background:'rgba(0,0,0,0.7)', borderRadius:5, padding:'2px 6px',
+                          }}>
+                            {shouldFlip ? '↕ 뒤집어서' : '그대로'} 삽입
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                );
+              })()
             ):(()=>{
               /* 팬 레이아웃 — 카드가 적을 때 가운데 정렬 */
               const n=myHand.length;
